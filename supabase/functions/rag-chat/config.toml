@@ -1,0 +1,2 @@
+[functions.rag-chat]
+verify_jwt = false

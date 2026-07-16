@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign Up | MCKL College</title>
+  <link rel="stylesheet" href="../style/auth.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../script/supabaseClient.js"></script>
+  <style>
+    .spinner {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid rgba(0,46,109,.2); border-top-color: #002e6d;
+      border-radius: 50%; animation: spin .7s linear infinite;
+      margin-right: 6px; vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<main class="auth-container">
+  <div class="auth-form">
+
+    <div class="school-brand">
+      <img src="../images/mckl-logo.png" alt="MCKL Logo" class="school-logo">
+      <div class="school-name">MCKL College Penang</div>
+      <div class="school-tagline">Methodist College Kuala Lumpur</div>
+    </div>
+
+    <h2>Create Account</h2>
+    <div id="msg" style="display:none"></div>
+
+    <form id="signupForm">
+      <div class="form-group">
+        <label for="student_name">Full Name</label>
+        <input type="text" id="student_name" placeholder="Your full name as per IC" required>
+      </div>
+
+      <div class="form-group">
+        <label for="student_gender">Gender</label>
+        <select id="student_gender" required>
+          <option value="">Select gender</option>
+          <option value="Male">Male</option>
+          <option value="Female">Female</option>
+          <option value="Prefer not to say">Prefer not to say</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="cohort">Programme</label>
+        <select id="cohort" required>
+          <option value="">Select your programme</option>
+          <option value="Diploma in Computer Science">Diploma in Computer Science</option>
+          <option value="Diploma in Business Administration">Diploma in Business Administration</option>
+          <option value="Diploma in Accounting">Diploma in Accounting</option>
+          <option value="Diploma in Mass Communication">Diploma in Mass Communication</option>
+          <option value="Foundation in Arts">Foundation in Arts</option>
+          <option value="Foundation in Science">Foundation in Science</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="intake_date">Intake Month</label>
+        <input type="month" id="intake_date" required>
+      </div>
+
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" id="email" placeholder="student@mckl.edu.my" required>
+      </div>
+
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" placeholder="At least 6 characters" minlength="6" required>
+      </div>
+
+      <div class="form-group">
+        <label for="confirm_password">Confirm Password</label>
+        <input type="password" id="confirm_password" placeholder="Repeat password" required>
+      </div>
+
+      <button type="submit" class="btn btn-primary" id="signupBtn">Sign Up</button>
+    </form>
+
+    <p class="auth-link">Already have an account? <a href="login.html">Login here</a></p>
+  </div>
+</main>
+
+<script>
+const sbClient = window.supabaseClient;
+
+// Programme → total semesters
+const PROGRAMME_SEMESTERS = {
+  'Diploma in Computer Science':        6,
+  'Diploma in Business Administration': 6,
+  'Diploma in Accounting':              6,
+  'Diploma in Mass Communication':      6,
+  'Foundation in Arts':                 2,
+  'Foundation in Science':              2,
+};
+
+// Compute which semester the student is currently in based on intake date
+// Diploma: 3 sems/year (Jan, May, Sep) | Foundation: 2 sems/year (Jan, Jul)
+function computeSemesterInfo(programme, intakeStr) {
+  const total   = PROGRAMME_SEMESTERS[programme] || 6;
+  const isFound = programme.startsWith('Foundation');
+  const semMonths = isFound ? [0, 6] : [0, 4, 8]; // 0-based month indices
+  const perYear   = semMonths.length;
+
+  const [intakeYear, intakeMonthRaw] = intakeStr.split('-').map(Number);
+  const intakeMonth = intakeMonthRaw - 1; // 0-based
+
+  // Find intake semester index in schedule
+  let startIdx = semMonths.findIndex(m => m >= intakeMonth);
+  if (startIdx === -1) startIdx = 0;
+
+  const now   = new Date();
+  let current = 1;
+
+  for (let i = 0; i < total; i++) {
+    const schedIdx  = (startIdx + i) % perYear;
+    const yearOff   = Math.floor((startIdx + i) / perYear);
+    const semYear   = intakeYear + yearOff;
+    const semMonth  = semMonths[schedIdx];
+
+    const nextIdx   = (schedIdx + 1) % perYear;
+    const nextYOff  = nextIdx === 0 ? 1 : 0;
+    const endYear   = semYear + nextYOff;
+    const endMonth  = semMonths[nextIdx];
+
+    const start = new Date(semYear, semMonth, 1);
+    const end   = new Date(endYear, endMonth, 1);
+
+    if (now >= start && now < end) { current = i + 1; break; }
+    if (now >= end) current = Math.min(i + 2, total);
+  }
+
+  current = Math.max(1, Math.min(current, total));
+  return { current_semester: current, semesters_left: total - current };
+}
+
+function showMsg(text, type) {
+  const el = document.getElementById('msg');
+  el.textContent = text;
+  el.className = `alert alert-${type}`;
+  el.style.display = 'block';
+}
+
+document.getElementById('signupForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('signupBtn');
+
+  const studentName  = document.getElementById('student_name').value.trim();
+  const studentGender= document.getElementById('student_gender').value;
+  const cohort       = document.getElementById('cohort').value;       // programme name
+  const intakeDate   = document.getElementById('intake_date').value;  // "YYYY-MM"
+  const email        = document.getElementById('email').value.trim();
+  const password     = document.getElementById('password').value;
+  const confirm      = document.getElementById('confirm_password').value;
+
+  if (password !== confirm) { showMsg('Passwords do not match.', 'error'); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Creating account…';
+
+  // 1. Create Supabase auth user
+  const { data: authData, error: authError } = await sbClient.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        full_name: studentName,
+        program:   cohort,
+        intake_date: intakeDate,
+        role: 'student',
+      }
+    }
+  });
+
+  if (authError) {
+    showMsg(authError.message, 'error');
+    btn.disabled = false;
+    btn.textContent = 'Sign Up';
+    return;
+  }
+
+  // 2. Compute semester info
+  const { current_semester, semesters_left } = computeSemesterInfo(cohort, intakeDate);
+
+  // 3. Insert into students table (linked via email)
+  const { error: insertError } = await sbClient.from('students').insert([{
+    student_name:    studentName,
+    student_gender:  studentGender,
+    email:           email,
+    cohort:          cohort,
+    current_semester,
+    semesters_left,
+  }]);
+
+  if (insertError) {
+    console.warn('Students table insert error:', insertError.message);
+    // Auth user was created — still let them proceed
+  }
+
+  showMsg('Account created! Check your email to confirm, then log in.', 'success');
+  btn.disabled = false;
+  btn.textContent = 'Sign Up';
+  setTimeout(() => window.location.href = 'login.html', 3000);
+});
+</script>
+</body>
+</html>

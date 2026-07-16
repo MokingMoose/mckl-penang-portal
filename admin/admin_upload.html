@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MCKL Admin — Document Upload</title>
+  <link rel="stylesheet" href="../style/index.css" />
+  <link rel="stylesheet" href="../style/Cns.css" />
+  <link rel="stylesheet" href="../style/admin_upload.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../script/supabaseClient.js"></script>
+  <script>
+    (async () => {
+      const { data: { session } } = await window.supabaseClient.auth.getSession();
+      if (!session) { window.location.href = '../user authentication/login.html?warning=1'; return; }
+      if (session.user.user_metadata?.role !== 'admin') {
+        document.body.innerHTML = `
+          <div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Arial,sans-serif;text-align:center;background:#f8f8f8">
+            <div style="background:#fff;border-radius:12px;padding:40px;box-shadow:0 2px 12px rgba(0,0,0,.1);max-width:400px">
+              <div style="font-size:3rem;margin-bottom:16px">🔒</div>
+              <h2 style="color:#002e6d;margin:0 0 10px">Access Denied</h2>
+              <p style="color:#666;margin:0 0 24px">This page is for administrators only.</p>
+              <a href="../homepage/homepage.html" style="background:#ffcf3c;color:#002e6d;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:700">Go Home</a>
+            </div>
+          </div>`;
+      }
+    })();
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+</head>
+<body>
+
+<header class="navbar">
+  <div class="container nav-content">
+    <a href="../homepage/homepage.html" class="logo-link">
+      <img src="../images/mckl-logo.png" alt="MCKL Logo" class="logo">
+    </a>
+    <nav class="nav-links" id="navMenu">
+      <a href="../homepage/homepage.html">HOME</a>
+      <a href="../borrow/borrow.html">BORROW</a>
+      <a href="../club/clubs.html">CLUBS</a>
+      <a href="../events/events.html">EVENTS</a>
+      <a href="../chat/chat.html">CHAT</a>
+    </nav>
+    <div class="header-right">
+      <a href="../facility/contact.html" class="contact-btn">CONTACT US</a>
+      <div id="authButtons" aria-live="polite"></div>
+      <div class="menu-toggle" id="menuToggle">&#9776;</div>
+    </div>
+  </div>
+</header>
+
+<main class="page">
+
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:28px">
+    <span style="font-size:.7rem;font-family:monospace;background:#002e6d;color:#ffcf3c;padding:4px 12px;border-radius:4px;font-weight:700;letter-spacing:.05em">ADMIN</span>
+    <h1 style="font-size:1.4rem;font-weight:700;color:#002e6d">Document Knowledge Base</h1>
+    <span style="margin-left:auto;font-size:.75rem;font-family:monospace;color:#9ca3af" id="statusLine">Ready</span>
+  </div>
+
+  <div class="pipeline-info">
+    <div class="pipe-step"><div class="pipe-dot vision"></div>1. Gemini Vision (visual grid reader)</div>
+    <span class="pipe-arrow">→ if fail →</span>
+    <div class="pipe-step"><div class="pipe-dot coords"></div>2. Coordinate Parser (x/y fallback)</div>
+    <span class="pipe-arrow">→ if fail →</span>
+    <div class="pipe-step"><div class="pipe-dot text"></div>3. Plain Text Extraction</div>
+  </div>
+
+  <div class="mode-toggle-bar">
+    <button class="mode-btn active" id="modeDocument" onclick="setMode('document')">
+      📄 Upload Document (RAG)
+    </button>
+    <button class="mode-btn" id="modeEvent" onclick="setMode('event')">
+      📅 Upload Event Form
+    </button>
+  </div>
+
+  <div class="modal-overlay" id="eventModal" style="display:none">
+    <div class="modal-box">
+      <h2>📅 Confirm Event Details</h2>
+      <p class="modal-sub">Gemini extracted these details from the uploaded form. Review and edit before saving.</p>
+      <div class="modal-notice">⚡ AI-extracted — please verify the date, time, and venue are correct.</div>
+      <div class="modal-field">
+        <label>Event Name</label>
+        <input type="text" id="ev_event_name" placeholder="Event title">
+      </div>
+      <div class="modal-row">
+        <div class="modal-field">
+          <label>Date</label>
+          <input type="date" id="ev_event_date">
+        </div>
+        <div class="modal-field">
+          <label>Start Time</label>
+          <input type="time" id="ev_event_time">
+        </div>
+      </div>
+      <div class="modal-row">
+        <div class="modal-field">
+          <label>End Time</label>
+          <input type="time" id="ev_end_time">
+        </div>
+        <div class="modal-field">
+          <label>Max Capacity</label>
+          <input type="number" id="ev_max_capacity" placeholder="Leave blank if open">
+        </div>
+      </div>
+      <div class="modal-field">
+        <label>Venue</label>
+        <input type="text" id="ev_venue" placeholder="Room / location">
+      </div>
+      <div class="modal-field">
+        <label>Organiser</label>
+        <input type="text" id="ev_organizer" placeholder="Club or society">
+      </div>
+      <div class="modal-field">
+        <label>Contact</label>
+        <input type="text" id="ev_contact" placeholder="Name or email">
+      </div>
+      <div class="modal-field">
+        <label>Description</label>
+        <textarea id="ev_description" placeholder="Brief event description"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="modal-cancel-btn" onclick="closeEventModal()">Cancel</button>
+        <button class="modal-confirm-btn" id="confirmEventBtn" onclick="saveEventToSupabase()">Save Event</button>
+      </div>
+    </div>
+  </div>
+
+  <p class="section-label">Upload Documents</p>
+  <div class="dropzone" id="dropzone">
+    <input type="file" id="fileInput" multiple accept=".txt,.pdf,.md,.docx" />
+    <div class="drop-icon">
+      <svg viewBox="0 0 24 24"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+    </div>
+    <h2>Drop files here to upload</h2>
+    <p>PDFs are read by Gemini Vision first so timetable grids are understood correctly.<br>Supports .TXT, .PDF, .MD, .DOCX</p>
+    <div class="file-types"><span>.TXT</span><span>.PDF</span><span>.MD</span><span>.DOCX</span></div>
+  </div>
+
+  <div class="queue" id="queue"></div>
+
+  <div class="action-bar" id="actionBar" style="display:none">
+    <button class="btn btn-primary" id="uploadAllBtn">Upload All to AI</button>
+    <button class="btn btn-ghost"   id="clearQueueBtn">Clear Queue</button>
+    <span class="upload-count" id="uploadCount"></span>
+  </div>
+
+  <div class="docs-header">
+    <p class="section-label" style="margin-bottom:0">Knowledge Base</p>
+    <span class="docs-count" id="docsCount">0 documents</span>
+  </div>
+  <div class="doc-list" id="docList">
+    <div class="empty-state"><p>No documents yet. Upload files above.</p></div>
+  </div>
+
+</main>
+
+<footer class="footer" id="contact">
+  <div class="container footer-content">
+    <div class="footer-logo-container">
+      <img src="../images/MCKL-logo 2.png" alt="MCKL Logo Footer" class="footer-logo">
+    </div>
+    <div class="footer-links">
+      <div class="footer-contact">
+        <h4>Contact Us</h4>
+        <ul>
+          <li><a href="mailto:admission.pg@mckl.edu.my">Email: admission.pg@mckl.edu.my</a></li>
+          <li><a href="tel:+6042175088">Phone: +604 217 5088 (General line)</a></li>
+          <li><a href="tel:+6046888327">Phone: +604 688 8327 (Course enquiry and registration)</a></li>
+          <li><a href="https://maps.app.goo.gl/cgDzUFLMhm3RTrkD8" target="_blank">Address: Lebuhraya Pykett, 10400 George Town, Pulau Pinang</a></li>
+        </ul>
+      </div>
+      <div class="footer-social">
+        <h4>Follow Us</h4>
+        <ul>
+          <li><a href="https://www.facebook.com/MethodistCollegeKL/" target="_blank">Facebook</a></li>
+          <li><a href="https://www.youtube.com/channel/UCnICekQMcPBPo24KylfP1AQ/featured" target="_blank">YouTube</a></li>
+          <li><a href="https://www.instagram.com/methodistcollegekl/" target="_blank">Instagram</a></li>
+          <li><a href="https://www.linkedin.com/school/methodist-college-kuala-lumpur/" target="_blank">LinkedIn</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <p class="copyright">&copy; 2025 MCKL College Penang. All rights reserved.</p>
+</footer>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+"use strict";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+const ADMIN_URL     = "https://okijsilavgrlaeoxveuh.supabase.co";
+const ADMIN_ANON    = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9raWpzaWxhdmdybGFlb3h2ZXVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3MzI3NTMsImV4cCI6MjA5NDMwODc1M30.HO_O7N1WRo09F5FV05_c21RiXkrQ1hpikibxrG80aW0";
+const CHUNK_SIZE    = 800;
+const CHUNK_OVERLAP = 100;
+const db = window.supabaseClient;
+
+// ── MODE — read from DOM, never trust a stale variable ────────────────────────
+function setMode(mode) {
+  document.getElementById("modeDocument").classList.toggle("active", mode === "document");
+  document.getElementById("modeEvent").classList.toggle("active",   mode === "event");
+}
+function isEventMode() {
+  return document.getElementById('modeEvent').classList.contains('active');
+}
+
+// ── TOAST ─────────────────────────────────────────────────────────────────────
+function toast(msg, type = 'info', duration = 3500) {
+  const el = document.createElement('div');
+  el.className   = `toast ${type}`;
+  el.textContent = msg;
+  document.getElementById('toastWrap').appendChild(el);
+  setTimeout(() => el.remove(), duration);
+}
+
+// ── EDGE FUNCTION CALL ────────────────────────────────────────────────────────
+async function callEdge(payload) {
+  const res  = await fetch(`${ADMIN_URL}/functions/v1/rag-chat`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ADMIN_ANON}` },
+    body:    JSON.stringify(payload),
+  });
+  const json = await res.json();
+  if (!res.ok || json.error) throw new Error(json.error || `HTTP ${res.status}`);
+  return json;
+}
+
+// ── PDF HELPERS ───────────────────────────────────────────────────────────────
+async function renderPageToImage(page) {
+  const viewport = page.getViewport({ scale: 1.8 });
+  const canvas   = document.createElement('canvas');
+  canvas.width   = viewport.width;
+  canvas.height  = viewport.height;
+  await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+  return canvas.toDataURL('image/png').split(',')[1];
+}
+
+async function extractWithVision(page) {
+  const imageBase64 = await renderPageToImage(page);
+  const { text }    = await callEdge({ action: 'vision', imageBase64, mimeType: 'image/png' });
+  if (!text || text.trim().length < 20) throw new Error('Vision returned insufficient content');
+  return { text, method: 'vision' };
+}
+
+async function extractWithCoordinates(page) {
+  const viewport = page.getViewport({ scale: 1 });
+  const content  = await page.getTextContent();
+  const items = content.items
+    .map(item => ({ text: item.str.trim(), x: Math.round(item.transform[4]), y: Math.round(viewport.height - item.transform[5]) }))
+    .filter(item => item.text.length > 0);
+  const DAY_MAP = {
+    'Mo':'MONDAY','Tu':'TUESDAY','We':'WEDNESDAY','Th':'THURSDAY','Fr':'FRIDAY',
+    'Mon':'MONDAY','Tue':'TUESDAY','Wed':'WEDNESDAY','Thu':'THURSDAY','Fri':'FRIDAY',
+    'Monday':'MONDAY','Tuesday':'TUESDAY','Wednesday':'WEDNESDAY','Thursday':'THURSDAY','Friday':'FRIDAY',
+  };
+  const TIME_RE   = /^\d{1,2}[:.]\d{2}/;
+  const dayItems  = items.filter(i => DAY_MAP[i.text]);
+  const timeItems = items.filter(i => TIME_RE.test(i.text));
+  if (dayItems.length < 2) throw new Error('Not enough day labels found for coordinate parsing');
+  dayItems.sort((a, b) => a.y - b.y);
+  timeItems.sort((a, b) => a.x - b.x);
+  const dayBands = dayItems.map((d, i) => ({
+    name: DAY_MAP[d.text],
+    yMin: i === 0 ? 0 : (dayItems[i-1].y + d.y) / 2,
+    yMax: i === dayItems.length-1 ? viewport.height : (d.y + dayItems[i+1].y) / 2,
+    refX: d.x,
+  }));
+  const timeSlots = timeItems.map((t, i) => ({
+    label: t.text,
+    xMin: i === 0 ? 0 : (timeItems[i-1].x + t.x) / 2,
+    xMax: i === timeItems.length-1 ? viewport.width : (t.x + timeItems[i+1].x) / 2,
+  }));
+  let result = '';
+  for (const band of dayBands) {
+    const rowItems = items.filter(it => it.y >= band.yMin && it.y < band.yMax && it.x > band.refX && !DAY_MAP[it.text] && !TIME_RE.test(it.text)).sort((a,b) => a.x - b.x);
+    if (!rowItems.length) continue;
+    result += `${band.name}\n`;
+    if (timeSlots.length > 0) {
+      const slotMap = {};
+      for (const it of rowItems) {
+        const slot = timeSlots.find(ts => it.x >= ts.xMin && it.x < ts.xMax);
+        const key  = slot ? slot.label : 'unassigned';
+        if (!slotMap[key]) slotMap[key] = [];
+        slotMap[key].push(it.text);
+      }
+      for (const [time, texts] of Object.entries(slotMap)) result += `  ${time}: ${texts.join(' ')}\n`;
+    } else {
+      result += `  ${rowItems.map(i => i.text).join(' | ')}\n`;
+    }
+    result += '\n';
+  }
+  if (!result.trim()) throw new Error('Coordinate parser produced no output');
+  return { text: result.trim(), method: 'coords' };
+}
+
+async function extractPlainText(page) {
+  const content = await page.getTextContent();
+  const text    = content.items.map(i => i.str).join(' ').trim();
+  if (!text) throw new Error('Page has no extractable text');
+  return { text, method: 'text' };
+}
+
+async function extractFromPDF(file) {
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  let fullText = '', method = 'text';
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    let result;
+    try {
+      result = await extractWithVision(page);
+    } catch (e1) {
+      console.warn(`[Vision failed p${p}]`, e1.message);
+      toast(`Page ${p}: Vision failed, trying coordinate parser…`, 'warn', 3000);
+      try {
+        result = await extractWithCoordinates(page);
+      } catch (e2) {
+        console.warn(`[Coords failed p${p}]`, e2.message);
+        toast(`Page ${p}: Coordinate parser failed, using plain text`, 'warn', 3000);
+        try { result = await extractPlainText(page); }
+        catch (e3) { console.warn(`[Text failed p${p}]`, e3.message); continue; }
+      }
+    }
+    fullText += (p > 1 ? '\n\n--- Page ' + p + ' ---\n\n' : '') + result.text;
+    method    = result.method;
+  }
+  return { text: fullText.trim(), method };
+}
+
+async function extractFromDocx(file) {
+  const buf    = await file.arrayBuffer();
+  const result = await mammoth.extractRawText({ arrayBuffer: buf });
+  const text   = result.value.trim();
+  if (!text) throw new Error('No text extracted from .docx file');
+  return { text, method: 'text' };
+}
+
+async function extractText(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'pdf')  return await extractFromPDF(file);
+  if (ext === 'docx') return await extractFromDocx(file);
+  const text = await file.text();
+  return { text: text.trim(), method: 'text' };
+}
+
+// ── EVENT FORM TEXT EXTRACTION (skips Vision entirely) ───────────────────────
+async function extractEventFormText(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'docx') return await extractFromDocx(file);
+  if (ext !== 'pdf') {
+    const text = await file.text();
+    return { text: text.trim(), method: 'text' };
+  }
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  let fullText = '';
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    try {
+      const content  = await page.getTextContent();
+      const pageText = content.items.map(i => i.str).join(' ').trim();
+      if (pageText) fullText += (fullText ? '\n\n' : '') + pageText;
+    } catch (e) {
+      console.warn(`Page ${p} skipped:`, e.message);
+    }
+  }
+  if (!fullText.trim()) throw new Error('No text could be extracted from this PDF.');
+  return { text: fullText.trim(), method: 'text' };
+}
+
+// ── CHUNKING ──────────────────────────────────────────────────────────────────
+function chunkText(text) {
+  const chunks = [];
+  let start = 0;
+  while (start < text.length) {
+    const chunk = text.slice(start, start + CHUNK_SIZE).trim();
+    if (chunk.length > 40) chunks.push(chunk);
+    start += CHUNK_SIZE - CHUNK_OVERLAP;
+  }
+  return chunks;
+}
+
+// ── QUEUE UI ──────────────────────────────────────────────────────────────────
+const fileQueue = [];
+
+function formatBytes(b) {
+  if (b < 1024) return `${b} B`;
+  if (b < 1048576) return `${(b/1024).toFixed(1)} KB`;
+  return `${(b/1048576).toFixed(1)} MB`;
+}
+
+function addToQueue(files) {
+  for (const file of files) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!['txt','pdf','md','docx'].includes(ext)) { toast(`Skipped ${file.name} — unsupported type`, 'error'); continue; }
+    const id = `q-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    fileQueue.push({ id, file, status: 'waiting' });
+    const item = document.createElement('div');
+    item.className = 'queue-item';
+    item.id = id;
+    item.innerHTML = `
+      <div class="queue-icon">${ext}</div>
+      <div class="queue-info">
+        <div class="queue-name">${file.name}</div>
+        <div class="queue-meta">${formatBytes(file.size)}</div>
+        <div id="${id}-method"></div>
+        <div class="progress-bar"><div class="progress-fill" id="${id}-bar" style="width:0%"></div></div>
+      </div>
+      <div class="queue-state waiting" id="${id}-state">Waiting</div>`;
+    document.getElementById('queue').appendChild(item);
+  }
+  updateActionBar();
+}
+
+function setItemState(id, state, progress = null, method = null) {
+  const stateEl  = document.getElementById(`${id}-state`);
+  const bar      = document.getElementById(`${id}-bar`);
+  const methodEl = document.getElementById(`${id}-method`);
+  const labels   = { waiting:'Waiting', reading:'Reading…', vision:'🔮 Vision AI…', coords:'📐 Coord parse…', embedding:'Embedding…', saving:'Saving…', done:'✓ Done', error:'✗ Error' };
+  if (stateEl)  { stateEl.className = `queue-state ${state}`; stateEl.textContent = labels[state] || state; }
+  if (bar && progress !== null) bar.style.width = `${progress}%`;
+  if (methodEl && method) {
+    const l = { vision:'Gemini Vision', coords:'Coordinate Parser', text:'Plain Text' };
+    methodEl.innerHTML = `<span class="queue-method ${method}">${l[method] || method}</span>`;
+  }
+}
+
+function updateActionBar() {
+  document.getElementById('actionBar').style.display = fileQueue.length ? 'flex' : 'none';
+  document.getElementById('uploadCount').textContent = `${fileQueue.length} file${fileQueue.length !== 1 ? 's' : ''} queued`;
+}
+
+// ── UPLOAD PIPELINE ───────────────────────────────────────────────────────────
+async function uploadAll() {
+  // Always read mode from DOM — immune to stale variable state
+  const eventMode = isEventMode();
+  console.log('Upload started — mode:', eventMode ? 'EVENT FORM' : 'DOCUMENT (RAG)');
+
+  document.getElementById('uploadAllBtn').disabled  = true;
+  document.getElementById('clearQueueBtn').disabled = true;
+  document.getElementById('statusLine').textContent = 'Uploading…';
+
+  for (const entry of fileQueue) {
+    if (entry.status === 'done') continue;
+    try {
+      setItemState(entry.id, 'reading', 5);
+
+      // Event forms skip Vision/Coords and go straight to plain text
+      const { text, method } = eventMode
+        ? await extractEventFormText(entry.file)
+        : await extractText(entry.file);
+
+      if (!text.trim()) throw new Error('No content extracted from file');
+
+      if (eventMode) {
+        // ── EVENT MODE ──────────────────────────────────────────────────────
+        setItemState(entry.id, null, 40, method);
+        await handleEventExtraction(text);
+        setItemState(entry.id, 'done', 100);
+        entry.status = 'done';
+        toast(`${entry.file.name} — event form processed`, 'success');
+      } else {
+        // ── DOCUMENT MODE: chunk → embed → save ─────────────────────────────
+        setItemState(entry.id, null, 15, method);
+        const chunks   = chunkText(text);
+        const docTitle = entry.file.name.replace(/\.[^.]+$/, '');
+        for (let i = 0; i < chunks.length; i++) {
+          const pct = 15 + Math.round(((i + 1) / chunks.length) * 80);
+          setItemState(entry.id, 'embedding', pct);
+          const embedInput = `${docTitle}\n${chunks[i]}`;
+          const { embedding } = await callEdge({ action: 'embed', input: embedInput });
+          setItemState(entry.id, 'saving', pct);
+          const { error } = await db.from('documents').insert({
+            content:  embedInput,
+            metadata: { title: docTitle, source: entry.file.name, chunk: i+1, total_chunks: chunks.length, extraction_method: method, uploaded_at: new Date().toISOString() },
+            embedding,
+          });
+          if (error) throw error;
+        }
+        setItemState(entry.id, 'done', 100);
+        entry.status = 'done';
+        toast(`${entry.file.name} — ${chunks.length} chunk${chunks.length !== 1 ? 's' : ''} uploaded`, 'success');
+      }
+
+    } catch (err) {
+      setItemState(entry.id, 'error');
+      toast(`${entry.file.name}: ${err.message}`, 'error', 7000);
+      console.error(err);
+    }
+  }
+
+  document.getElementById('statusLine').textContent = 'Ready';
+  document.getElementById('uploadAllBtn').disabled  = false;
+  document.getElementById('clearQueueBtn').disabled = false;
+  loadDocuments();
+}
+
+// ── EVENT EXTRACTION ──────────────────────────────────────────────────────────
+async function handleEventExtraction(parsedText) {
+  try {
+    const { event } = await callEdge({ action: 'extract_event', input: parsedText });
+    if (!event) throw new Error('No event data returned.');
+    setField('ev_event_name',   event.event_name);
+    setField('ev_event_date',   event.event_date);
+    setField('ev_event_time',   event.event_time);
+    setField('ev_end_time',     event.end_time);
+    setField('ev_venue',        event.venue);
+    setField('ev_organizer',    event.organizer);
+    setField('ev_contact',      event.contact);
+    setField('ev_description',  event.description);
+    setField('ev_max_capacity', event.max_capacity ?? '');
+    openEventModal();
+  } catch (err) {
+    console.error('Event extraction error:', err);
+    toast('Extraction failed: ' + err.message, 'error', 7000);
+    throw err;
+  }
+}
+
+function setField(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.value = value ?? '';
+}
+
+function openEventModal()  { document.getElementById('eventModal').style.display = 'flex'; }
+function closeEventModal() { document.getElementById('eventModal').style.display = 'none'; }
+
+document.getElementById('eventModal').addEventListener('click', function(e) {
+  if (e.target === this) closeEventModal();
+});
+
+// ── SAVE EVENT ────────────────────────────────────────────────────────────────
+async function saveEventToSupabase() {
+  const btn = document.getElementById('confirmEventBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const eventName = document.getElementById('ev_event_name').value.trim();
+    const eventDate = document.getElementById('ev_event_date').value.trim();
+    if (!eventName || !eventDate) { alert('Event Name and Date are required.'); return; }
+    const capacity = document.getElementById('ev_max_capacity').value.trim();
+    console.log('Inserting event:', eventName, eventDate);
+    const { data: insertData, error } = await db.from('events').insert([{
+      event_name:   eventName,
+      event_date:   eventDate,
+      event_time:   document.getElementById('ev_event_time').value   || null,
+      end_time:     document.getElementById('ev_end_time').value     || null,
+      venue:        document.getElementById('ev_venue').value.trim() || null,
+      organizer:    document.getElementById('ev_organizer').value.trim()    || null,
+      contact:      document.getElementById('ev_contact').value.trim()      || null,
+      description:  document.getElementById('ev_description').value.trim() || null,
+      max_capacity: capacity ? parseInt(capacity, 10) : null,
+    }]);
+    if (error) throw error;
+    console.log('Insert result — data:', insertData, '| error:', error);
+    closeEventModal();
+    toast(`"${eventName}" added to events ✓`, 'success');
+    document.getElementById('statusLine').textContent = `Event "${eventName}" saved`;
+  } catch (err) {
+    console.error('Save event error:', err);
+    alert('Failed to save event: ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save Event';
+  }
+}
+
+// ── DOCUMENT LIST ─────────────────────────────────────────────────────────────
+async function loadDocuments() {
+  const { data, error } = await db.from('documents').select('id, content, metadata').order('id', { ascending: false });
+  if (error) { toast('Could not load documents', 'error'); return; }
+  const groups = {};
+  for (const row of data || []) {
+    const key = row.metadata?.source || row.metadata?.title || `Doc #${row.id}`;
+    if (!groups[key]) groups[key] = { title: row.metadata?.title || key, source: key, ids: [], method: row.metadata?.extraction_method };
+    groups[key].ids.push(row.id);
+  }
+  const entries = Object.values(groups);
+  document.getElementById('docsCount').textContent = `${entries.length} document${entries.length !== 1 ? 's' : ''} · ${(data||[]).length} chunks`;
+  const list = document.getElementById('docList');
+  if (!entries.length) { list.innerHTML = '<div class="empty-state"><p>No documents yet. Upload files above.</p></div>'; return; }
+  list.innerHTML = '';
+  for (const g of entries) {
+    const methodLabel = { vision:'Vision AI', coords:'Coord Parser', text:'Plain Text' }[g.method] || '';
+    const row = document.createElement('div');
+    row.className = 'doc-row';
+    row.innerHTML = `
+      <div>
+        <div class="doc-title">${g.title}</div>
+        <div class="doc-subtitle">${g.source}${methodLabel ? ` · ${methodLabel}` : ''}</div>
+      </div>
+      <div class="doc-chunks">${g.ids.length} chunk${g.ids.length !== 1 ? 's' : ''}</div>
+      <button class="btn-del" title="Delete" data-ids='${JSON.stringify(g.ids)}'>
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+      </button>`;
+    row.querySelector('.btn-del').addEventListener('click', async (e) => {
+      const ids = JSON.parse(e.currentTarget.dataset.ids);
+      if (!confirm(`Delete "${g.title}" (${ids.length} chunks)?`)) return;
+      const { error } = await db.from('documents').delete().in('id', ids);
+      if (error) { toast('Delete failed', 'error'); return; }
+      toast(`"${g.title}" deleted`, 'success');
+      loadDocuments();
+    });
+    list.appendChild(row);
+  }
+}
+
+// ── WIRING ────────────────────────────────────────────────────────────────────
+const dropzone  = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+dropzone.addEventListener('dragover',  e  => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+dropzone.addEventListener('drop',      e  => { e.preventDefault(); dropzone.classList.remove('drag-over'); addToQueue([...e.dataTransfer.files]); });
+fileInput.addEventListener('change',   () => { addToQueue([...fileInput.files]); fileInput.value = ''; });
+document.getElementById('uploadAllBtn').addEventListener('click', uploadAll);
+document.getElementById('clearQueueBtn').addEventListener('click', () => {
+  fileQueue.length = 0;
+  document.getElementById('queue').innerHTML = '';
+  updateActionBar();
+});
+
+// ── AUTH HEADER ───────────────────────────────────────────────────────────────
+async function renderAuthHeader() {
+  const authButtons = document.getElementById('authButtons');
+  if (!authButtons) return;
+  const client = window.supabaseClient;
+  const renderLoggedOut = () => {
+    authButtons.innerHTML = `
+      <a href="../user authentication/login.html" class="login-btn">LOGIN</a>
+      <a href="../user authentication/signup.html" class="signup-btn">SIGN UP</a>`;
+  };
+  const renderLoggedIn = () => {
+    authButtons.innerHTML = `
+      <a href="../user authentication/profile.html" class="profile-link">
+        <img src="../images/profile.png" alt="Profile" class="profile-icon">
+      </a>
+      <a href="#" class="logout-btn" id="logoutBtn">LOGOUT</a>`;
+    const lb = document.getElementById('logoutBtn');
+    if (lb) lb.addEventListener('click', async e => { e.preventDefault(); await client.auth.signOut(); });
+  };
+  if (!client?.auth?.getSession) { renderLoggedOut(); return; }
+  const { data } = await client.auth.getSession();
+  data?.session ? renderLoggedIn() : renderLoggedOut();
+  client.auth.onAuthStateChange((_, s) => s ? renderLoggedIn() : renderLoggedOut());
+}
+
+// ── MOBILE MENU ───────────────────────────────────────────────────────────────
+const _mt = document.getElementById('menuToggle');
+const _nm = document.getElementById('navMenu');
+if (_mt && _nm) {
+  _mt.addEventListener('click', () => _nm.classList.toggle('active'));
+  window.addEventListener('resize', () => { if (window.innerWidth > 992) _nm.classList.remove('active'); });
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+renderAuthHeader();
+loadDocuments();
+</script>
+</body>
+</html>

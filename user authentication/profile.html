@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Profile | MCKL College</title>
+  <link rel="stylesheet" href="../style/index.css">
+  <link rel="stylesheet" href="../style/Cns.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../script/supabaseClient.js"></script>
+  <style>
+    body { background: #f8f8f8; }
+    .profile-page { max-width: 900px; margin: 100px auto 60px; padding: 0 20px; }
+
+    /* hero card */
+    .profile-hero {
+      background: linear-gradient(135deg, #001e4d, #002e6d);
+      border-radius: 12px;
+      padding: 30px 28px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 22px;
+      margin-bottom: 22px;
+      box-shadow: 0 4px 16px rgba(0,0,0,.18);
+    }
+    .profile-avatar {
+      width: 68px; height: 68px;
+      border-radius: 50%;
+      background: #f9c400;
+      color: #002e6d;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.7rem; font-weight: 800; flex-shrink: 0;
+    }
+    .profile-hero h1 { margin: 0 0 4px; font-size: 1.4rem; font-weight: 800; }
+    .profile-hero p  { margin: 0; color: rgba(255,255,255,.72); font-size: .88rem; }
+    .hero-badge {
+      margin-left: auto;
+      padding: 5px 13px;
+      border-radius: 3px;
+      background: rgba(249,196,0,.2);
+      border: 1px solid rgba(249,196,0,.4);
+      color: #f9c400;
+      font-size: .75rem; font-weight: 700;
+      letter-spacing: .05em; text-transform: uppercase;
+      white-space: nowrap; flex-shrink: 0;
+    }
+
+    /* grid */
+    .cards-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+    .card { background: #fff; border-radius: 12px; border: 1px solid #e0e6f0; box-shadow: 0 2px 8px rgba(0,0,0,.07); overflow: hidden; }
+    .card-header { padding: 13px 20px; background: #fafbfd; border-bottom: 1px solid #e8edf5; font-weight: 700; color: #002e6d; font-size: .93rem; }
+    .card-body { padding: 18px 20px; }
+
+    .info-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f4fa; font-size: .89rem; }
+    .info-row:last-child { border-bottom: none; }
+    .info-label { color: #666; font-weight: 600; }
+    .info-value { color: #111; font-weight: 500; }
+
+    /* semester tracker */
+    .semester-card { grid-column: 1 / -1; }
+    .progress-track { display: flex; gap: 6px; flex-wrap: wrap; margin: 16px 0 8px; }
+    .sem-pill {
+      padding: 8px 14px; border-radius: 3px;
+      font-size: .76rem; font-weight: 700;
+      text-align: center; min-width: 88px;
+      border: 2px solid transparent;
+    }
+    .sem-pill.completed { background: #002e6d; color: #fff; }
+    .sem-pill.current   { background: #f9c400; color: #002e6d; border-color: #e6b800; }
+    .sem-pill.upcoming  { background: #f0f4fa; color: #aaa; border-color: #e0e6f0; }
+
+    .sem-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: .76rem; color: #666; margin-top: 10px; }
+    .sem-legend span { display: flex; align-items: center; gap: 5px; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+
+    .sem-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
+    .sem-stat { background: #f8f8f8; border-radius: 8px; padding: 14px; text-align: center; border: 1px solid #e8edf5; }
+    .sem-stat .num { font-size: 1.5rem; font-weight: 800; color: #002e6d; }
+    .sem-stat .lbl { font-size: .73rem; color: #888; margin-top: 3px; }
+
+    .btn-logout {
+      display: inline-block; padding: 10px 24px;
+      background: #f9c400; color: #002e6d;
+      border: none; border-radius: 3px;
+      font-weight: 700; font-size: .9rem;
+      cursor: pointer; text-decoration: none;
+      transition: background .2s, transform .2s;
+      margin-top: 8px;
+    }
+    .btn-logout:hover { background: #ffda52; transform: translateY(-2px); }
+
+    .loading { text-align: center; padding: 60px; color: #888; }
+    #authButtons { display: inline-flex; gap: 10px; align-items: center; }
+
+    @media (max-width: 640px) {
+      .cards-grid { grid-template-columns: 1fr; }
+      .profile-hero { flex-direction: column; text-align: center; }
+      .hero-badge { margin-left: 0; }
+      .sem-stats { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="navbar">
+  <div class="container nav-content">
+    <a href="../homepage/homepage.html" class="logo-link">
+      <img src="../images/mckl-logo.png" alt="MCKL Logo" class="logo">
+    </a>
+    <nav class="nav-links" id="navMenu">
+      <a href="../homepage/homepage.html">HOME</a>
+      <a href="../borrow/borrow.html">BORROW</a>
+      <a href="../club/clubs.html">CLUBS</a>
+      <a href="../events/events.html">EVENTS</a>
+    </nav>
+    <div class="header-right">
+      <a href="../facility/contact.html" class="contact-btn">CONTACT US</a>
+      <div id="authButtons"></div>
+      <div class="menu-toggle" id="menuToggle">&#9776;</div>
+    </div>
+  </div>
+</header>
+
+<main class="profile-page">
+  <div id="loadingState" class="loading">Loading your profile…</div>
+  <div id="profileContent" style="display:none">
+
+    <div class="profile-hero">
+      <div class="profile-avatar" id="avatarInitial">?</div>
+      <div>
+        <h1 id="heroName">—</h1>
+        <p id="heroSub">—</p>
+      </div>
+      <span class="hero-badge" id="heroBadge">Student</span>
+    </div>
+
+    <div class="cards-grid">
+
+      <!-- PERSONAL INFO -->
+      <div class="card">
+        <div class="card-header">👤 Personal Information</div>
+        <div class="card-body">
+          <div class="info-row"><span class="info-label">Full Name</span><span class="info-value" id="infoName">—</span></div>
+          <div class="info-row"><span class="info-label">Gender</span><span class="info-value" id="infoGender">—</span></div>
+          <div class="info-row"><span class="info-label">Email</span><span class="info-value" id="infoEmail">—</span></div>
+          <div class="info-row"><span class="info-label">Programme</span><span class="info-value" id="infoCohort">—</span></div>
+        </div>
+      </div>
+
+      <!-- ACCOUNT -->
+      <div class="card">
+        <div class="card-header">🔐 Account</div>
+        <div class="card-body">
+          <div class="info-row"><span class="info-label">Role</span><span class="info-value" id="infoRole">—</span></div>
+          <div class="info-row"><span class="info-label">Member Since</span><span class="info-value" id="infoCreated">—</span></div>
+          <div class="info-row"><span class="info-label">Last Sign In</span><span class="info-value" id="infoLastSignIn">—</span></div>
+          <br>
+          <a href="#" id="logoutBtn" class="btn-logout">Logout</a>
+        </div>
+      </div>
+
+      <!-- SEMESTER TRACKER -->
+      <div class="card semester-card">
+        <div class="card-header">📅 Semester Progress Tracker</div>
+        <div class="card-body" id="semesterBody">
+          <p style="color:#888">Loading semester data…</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="container footer-content">
+    <div class="footer-logo-container">
+      <img src="../images/MCKL-logo 2.png" alt="MCKL Logo Footer" class="footer-logo">
+    </div>
+    <div class="footer-links">
+      <div class="footer-contact">
+        <h4>Contact Us</h4>
+        <ul>
+          <li><a href="mailto:admission.pg@mckl.edu.my">Email: admission.pg@mckl.edu.my</a></li>
+          <li><a href="tel:+6042175088">Phone: +604 217 5088 (General line)</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <p class="copyright">© 2025 MCKL College Penang. All rights reserved.</p>
+</footer>
+
+<script>
+const sbClient = window.supabaseClient;
+
+const PROGRAMME_CONFIG = {
+  'Diploma in Computer Science':        { total: 6, sems: [0, 4, 8],  labels: ['Long','Short','Long'] },
+  'Diploma in Business Administration': { total: 6, sems: [0, 4, 8],  labels: ['Long','Short','Long'] },
+  'Diploma in Accounting':              { total: 6, sems: [0, 4, 8],  labels: ['Long','Short','Long'] },
+  'Diploma in Mass Communication':      { total: 6, sems: [0, 4, 8],  labels: ['Long','Short','Long'] },
+  'Foundation in Arts':                 { total: 2, sems: [0, 6],     labels: ['Sem 1','Sem 2'] },
+  'Foundation in Science':              { total: 2, sems: [0, 6],     labels: ['Sem 1','Sem 2'] },
+};
+
+function renderSemesters(currentSem, semsLeft, programme) {
+  const body   = document.getElementById('semesterBody');
+  const config = PROGRAMME_CONFIG[programme];
+
+  if (!config) {
+    body.innerHTML = '<p style="color:#888">No semester data available for this programme.</p>';
+    return;
+  }
+
+  const total     = config.total;
+  const completed = currentSem - 1;
+  const pills     = [];
+
+  for (let i = 1; i <= total; i++) {
+    let status = 'upcoming';
+    if (i < currentSem)  status = 'completed';
+    if (i === currentSem) status = 'current';
+
+    const labelIdx = (i - 1) % config.labels.length;
+    const semType  = config.labels[labelIdx];
+
+    pills.push(`
+      <div class="sem-pill ${status}">
+        Sem ${i}<br>
+        <span style="font-size:.63rem;font-weight:500;opacity:.8">${semType}</span>
+      </div>`);
+  }
+
+  body.innerHTML = `
+    <div class="info-row">
+      <span class="info-label">Current Semester</span>
+      <span class="info-value">Semester ${currentSem} of ${total}</span>
+    </div>
+    <div class="progress-track">${pills.join('')}</div>
+    <div class="sem-legend">
+      <span><div class="legend-dot" style="background:#002e6d"></div>Completed</span>
+      <span><div class="legend-dot" style="background:#f9c400;border:1px solid #e6b800"></div>Current</span>
+      <span><div class="legend-dot" style="background:#f0f4fa;border:1px solid #e0e6f0"></div>Upcoming</span>
+    </div>
+    <div class="sem-stats">
+      <div class="sem-stat"><div class="num">${completed}</div><div class="lbl">Completed</div></div>
+      <div class="sem-stat"><div class="num">1</div><div class="lbl">In Progress</div></div>
+      <div class="sem-stat"><div class="num">${semsLeft}</div><div class="lbl">Remaining</div></div>
+    </div>`;
+}
+
+async function loadProfile() {
+  const { data: { session } } = await sbClient.auth.getSession();
+  if (!session) { window.location.href = 'login.html?warning=1'; return; }
+
+  const user = session.user;
+  const meta = user.user_metadata || {};
+  const role = meta.role || 'student';
+
+  // Fetch from students table using email
+  const { data: studentRows } = await sbClient
+    .from('students')
+    .select('*')
+    .eq('email', user.email)
+    .limit(1);
+
+  const student = studentRows?.[0] || null;
+
+  document.getElementById('loadingState').style.display = 'none';
+  document.getElementById('profileContent').style.display = 'block';
+
+  const name    = student?.student_name || meta.full_name || user.email;
+  const initial = name.charAt(0).toUpperCase();
+  const programme = student?.cohort || meta.program || '';
+
+  // Hero
+  document.getElementById('avatarInitial').textContent = initial;
+  document.getElementById('heroName').textContent = name;
+  document.getElementById('heroSub').textContent  = programme || user.email;
+  document.getElementById('heroBadge').textContent = role.charAt(0).toUpperCase() + role.slice(1);
+
+  // Info
+  document.getElementById('infoName').textContent    = name;
+  document.getElementById('infoGender').textContent  = student?.student_gender || '—';
+  document.getElementById('infoEmail').textContent   = user.email;
+  document.getElementById('infoCohort').textContent  = programme || '—';
+  document.getElementById('infoRole').textContent    = role;
+  document.getElementById('infoCreated').textContent = new Date(user.created_at)
+    .toLocaleDateString('en-MY', { day:'2-digit', month:'short', year:'numeric' });
+  document.getElementById('infoLastSignIn').textContent = new Date(user.last_sign_in_at)
+    .toLocaleDateString('en-MY', { day:'2-digit', month:'short', year:'numeric' });
+
+  // Semester tracker — read directly from students table
+  if (student && student.current_semester) {
+    renderSemesters(student.current_semester, student.semesters_left, programme);
+  } else {
+    document.getElementById('semesterBody').innerHTML =
+      '<p style="color:#888">No semester data found. Please contact admin.</p>';
+  }
+
+  // Navbar
+  document.getElementById('authButtons').innerHTML =
+    `<a href="#" class="logout-btn" id="logoutBtn2">LOGOUT</a>`;
+
+  ['logoutBtn', 'logoutBtn2'].forEach(id => {
+    document.getElementById(id)?.addEventListener('click', async e => {
+      e.preventDefault();
+      await sbClient.auth.signOut();
+      window.location.href = 'login.html';
+    });
+  });
+}
+
+const menuToggle = document.getElementById("menuToggle");
+const navMenu    = document.getElementById("navMenu");
+if (menuToggle && navMenu) {
+  menuToggle.addEventListener("click", () => navMenu.classList.toggle("active"));
+  window.addEventListener("resize", () => {
+    if (window.innerWidth > 992) navMenu.classList.remove("active");
+  });
+}
+
+document.addEventListener('DOMContentLoaded', loadProfile);
+</script>
+</body>
+</html>

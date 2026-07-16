@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact Us</title>
+    
+    <link rel="stylesheet" href="../style/contact.css">
+    <link rel="stylesheet" href="../style/index.css">
+<header>
+    <a href="../homepage/index.php" class="back-home-btn">← Back to Homepage</a>
+
+</header>
+    <style>
+        /* BASIC RESET */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f7fa;
+            margin: 0;
+            padding: 0;
+            /* CRITICAL: Pushes content down so it's not hidden behind the fixed header */
+            padding-top: 80px; 
+        }
+        .back-home-btn {
+    display: inline-block;
+    margin-top: 20px;
+    padding: 10px 18px;
+    background-color: #002D72;
+    color: white;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: bold;
+    transition: 0.2s ease;
+}
+
+.back-home-btn:hover {
+    background-color: #001f52;
+}
+
+
+        /* HEADER STYLES (If not loaded from external file) */
+        .navbar {
+            background-color: #002e6d;
+            position: fixed; /* Keeps header at top */
+            top: 0;
+            left: 0;
+            width: 100%;
+            z-index: 1000;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        .nav-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* LOGO */
+        .logo {
+            height: 50px;
+            width: auto;
+        }
+
+        /* NAVIGATION LINKS */
+        .nav-links {
+            display: flex;
+            gap: 20px;
+        }
+
+        .nav-links a {
+            color: white;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .nav-links a:hover {
+            color: #f9c400;
+        }
+
+        /* RIGHT SIDE BUTTONS */
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .contact-btn, .login-btn, .signup-btn {
+            text-decoration: none;
+            color: white;
+            font-size: 13px;
+            font-weight: bold;
+        }
+        
+        .contact-btn {
+            background-color: #f9c400;
+            color: #002e6d;
+            padding: 8px 12px;
+            border-radius: 4px;
+        }
+
+        /* ICONS FIX */
+        .profile-icon, .cart-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            object-fit: cover;
+            display: block; /* Removes extra spacing */
+        }
+
+        .menu-toggle {
+            display: none; /* Hidden on desktop */
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        /* CONTACT FORM STYLES */
+        .main-container {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 30px;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #002e6d;
+            margin-bottom: 30px;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        input, textarea {
+            margin-bottom: 20px;
+            padding: 12px;
+            font-size: 14px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        textarea {
+            resize: vertical;
+            height: 120px;
+        }
+
+        .submit-btn {
+            background-color: #002e6d;
+            color: white;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .submit-btn:hover {
+            background-color: #f9c400;
+            color: #002e6d;
+        }
+
+        .contact-details {
+            margin-top: 40px;
+            background-color: #e8f4ff;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #c2e0ff;
+        }
+
+        /* FOOTER STYLES */
+        .footer {
+            background-color: #003366;
+            color: white;
+            padding: 40px 20px;
+            margin-top: 50px;
+        }
+        
+        .footer-content {
+            display: flex;
+            justify-content: space-between;
+            max-width: 1200px;
+            margin: 0 auto;
+            flex-wrap: wrap;
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 50px;
+        }
+
+        .footer h4 {
+            color: #ffcc00;
+            margin-bottom: 15px;
+        }
+
+        .footer ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .footer li {
+            margin-bottom: 10px;
+        }
+
+        .footer a {
+            color: white;
+            text-decoration: none;
+        }
+        
+        .copyright {
+            text-align: center;
+            margin-top: 30px;
+            font-size: 14px;
+            color: #ccc;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="main-container">
+        <h1>Contact Us</h1>
+
+        <form action="send_message.php" method="POST">
+            <label for="fullname">Full Name</label>
+            <input type="text" id="fullname" name="fullname" placeholder="Enter your full name" required>
+
+            <label for="phone">Phone Number</label>
+            <input type="tel" id="phone" name="phone" placeholder="e.g. +60 12-345 6789" required>
+
+            <label for="email">Email Address</label>
+            <input type="email" id="email" name="email" placeholder="example@mckl.edu.my" required>
+
+            <label for="message">Message</label>
+            <textarea id="message" name="message" placeholder="Type your message here..." required></textarea>
+
+            <button type="submit" class="submit-btn">Send Message</button>
+        </form>
+
+        <div class="contact-details">
+            <h2>Merchandise Store Contact</h2>
+            <p><strong>Email:</strong> merchstore@mckl.edu.my</p>
+            <p><strong>Phone:</strong> +60 12-345 6789</p>
+            <p><strong>Address:</strong> 123 Main Street, Kuala Lumpur, Malaysia</p>
+        </div>
+    </div>
+
+    <footer class="footer" id="contact">
+        <div class="footer-content">
+            <div class="footer-logo-container">
+                <img src="../images/MCKL-logo 2.png" alt="MCKL Logo Footer" class="footer-logo" style="width: 150px;">
+            </div>
+
+            <div class="footer-links">
+                <div class="footer-contact">
+                    <h4>Contact Us</h4>
+                    <ul>
+                        <li><a href="mailto:admission.pg@mckl.edu.my">Email: admission.pg@mckl.edu.my</a></li>
+                        <li><a href="tel:+6042175088">Phone: +604 217 5088</a></li>
+                        <li>Lebuhraya Pykett, 10400 George Town</li>
+                    </ul>
+                </div>
+
+                <div class="footer-social">
+                    <h4>Follow Us</h4>
+                    <ul>
+                        <li><a href="#">Facebook</a></li>
+                        <li><a href="#">YouTube</a></li>
+                        <li><a href="#">Instagram</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <p class="copyright">© 2025 MCKL College Penang. All rights reserved.</p>
+    </footer>
+
+</body>
+</html>

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login | MCKL College</title>
+    <link rel="stylesheet" href="../style/auth.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../script/supabaseClient.js"></script>
+  <style>
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .alert { padding: 10px 14px; border-radius: 6px; margin-bottom: 16px; font-weight: 600; font-size: .9rem; }
+    .alert-error   { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; display: block; }
+    .alert-warning { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; display: block; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #86efac; display: block; }
+  </style>
+</head>
+<body>
+
+<main class="auth-container">
+  <div class="auth-form">
+    <div class="school-brand">
+      <img src="../images/mckl-logo.png" alt="MCKL Logo" class="school-logo">
+      <div class="school-name">MCKL College Penang</div>
+      <div class="school-tagline">Methodist College Kuala Lumpur</div>
+    </div>
+    <h2>Login to Your Account</h2>
+
+    <div id="msg" style="display:none"></div>
+
+    <form id="loginForm">
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" required placeholder="student@mckl.edu.my">
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required placeholder="••••••••">
+      </div>
+      <button type="submit" class="btn btn-primary" id="loginBtn">Login</button>
+    </form>
+
+    <p class="auth-link">Don't have an account? <a href="signup.html">Sign up here</a></p>
+  </div>
+</main>
+
+<script>
+const sbClient = window.supabaseClient;
+
+function showMsg(text, type) {
+  const el = document.getElementById('msg');
+  el.textContent = text;
+  el.className = `alert alert-${type}`;
+  el.style.display = 'block';
+}
+
+// Show warning if redirected from a protected page
+window.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('warning') === '1') {
+    showMsg('Please log in to access this feature.', 'warning');
+  }
+});
+
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('loginBtn');
+  const email    = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Logging in…';
+
+  const { data, error } = await sbClient.auth.signInWithPassword({ email, password });
+
+  if (error) {
+    showMsg('Invalid email or password.', 'error');
+    btn.disabled = false;
+    btn.textContent = 'Login';
+    return;
+  }
+
+  // Redirect — go back to where they came from, or profile
+  const redirectTo = new URLSearchParams(window.location.search).get('redirect') || '../homepage/homepage.html';
+  window.location.href = redirectTo;
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Event Details – MCKL Penang</title>
+  <link rel="stylesheet" href="../style/index.css" />
+  <link rel="stylesheet" href="../style/Cns.css" />
+  <link rel="stylesheet" href="../style/event_detail.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../script/supabaseClient.js"></script>
+</head>
+<body>
+
+<header class="navbar">
+  <div class="container nav-content">
+    <a href="../homepage/homepage.html" class="logo-link">
+      <img src="../images/mckl-logo.png" alt="MCKL Logo" class="logo">
+    </a>
+    <nav class="nav-links" id="navMenu">
+      <a href="../homepage/homepage.html">HOME</a>
+      <a href="../borrow/borrow.html">BORROW</a>
+      <a href="../club/clubs.html">CLUBS</a>
+      <a href="events.html">EVENTS</a>
+    </nav>
+    <div class="header-right">
+      <a href="../facility/contact.html" class="contact-btn">CONTACT US</a>
+      <div id="authButtons" aria-live="polite"></div>
+      <div class="menu-toggle" id="menuToggle">&#9776;</div>
+    </div>
+  </div>
+</header>
+
+<main class="detail-page" id="detailPage">
+  <!-- Content injected by JS -->
+  <div class="state-wrap" id="loadingState">
+    <div class="icon">⏳</div>
+    <h3>Loading event...</h3>
+  </div>
+</main>
+
+<footer class="footer" id="contact">
+  <div class="container footer-content">
+    <div class="footer-logo-container">
+      <img src="../images/MCKL-logo 2.png" alt="MCKL Logo Footer" class="footer-logo">
+    </div>
+    <div class="footer-links">
+      <div class="footer-contact">
+        <h4>Contact Us</h4>
+        <ul>
+          <li><a href="mailto:admission.pg@mckl.edu.my">Email: admission.pg@mckl.edu.my</a></li>
+          <li><a href="tel:+6042175088">Phone: +604 217 5088 (General line)</a></li>
+          <li><a href="tel:+6046888327">Phone: +604 688 8327 (Course enquiry and registration)</a></li>
+          <li><a href="https://maps.app.goo.gl/cgDzUFLMhm3RTrkD8" target="_blank">Address: Lebuhraya Pykett, 10400 George Town, Pulau Pinang</a></li>
+        </ul>
+      </div>
+      <div class="footer-social">
+        <h4>Follow Us</h4>
+        <ul>
+          <li><a href="https://www.facebook.com/MethodistCollegeKL/" target="_blank">Facebook</a></li>
+          <li><a href="https://www.youtube.com/channel/UCnICekQMcPBPo24KylfP1AQ/featured" target="_blank">YouTube</a></li>
+          <li><a href="https://www.instagram.com/methodistcollegekl/" target="_blank">Instagram</a></li>
+          <li><a href="https://www.linkedin.com/school/methodist-college-kuala-lumpur/" target="_blank">LinkedIn</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <p class="copyright">&copy; 2025 MCKL College Penang. All rights reserved.</p>
+</footer>
+
+<script>
+"use strict";
+
+const supabaseClient = window.supabaseClient;
+let currentUserId    = null;
+let isRegistered     = false;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function esc(str) {
+  return String(str ?? "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function dateFull(dateStr) {
+  return new Date(dateStr + "T00:00:00").toLocaleDateString("en-MY", {
+    weekday: "long", year: "numeric", month: "long", day: "numeric"
+  });
+}
+
+function dateBadge(dateStr) {
+  const d = new Date(dateStr + "T00:00:00");
+  return {
+    day: d.getDate(),
+    mon: d.toLocaleString("en-MY", { month: "short" })
+  };
+}
+
+function timeFmt(t) {
+  if (!t) return null;
+  const [hh, mm] = t.split(":");
+  const h = parseInt(hh, 10);
+  return `${h % 12 || 12}:${mm} ${h >= 12 ? "PM" : "AM"}`;
+}
+
+function eventIcon(event) {
+  const text = ((event.event_name || "") + " " + (event.organizer || "")).toLowerCase();
+  if (/sport|badminton|football|futsal|basketball|swim|run|athletic/i.test(text)) return "🏅";
+  if (/food|cook|bake|culinary/i.test(text)) return "🍽️";
+  if (/music|concert|choir|band|perform/i.test(text)) return "🎵";
+  if (/art|paint|draw|design|craft/i.test(text)) return "🎨";
+  if (/tech|code|hack|robot|stem|it |computer|devhub/i.test(text)) return "💻";
+  if (/talk|seminar|workshop|lecture|conference/i.test(text)) return "🎤";
+  if (/fund|charity|community|volunteer/i.test(text)) return "🤝";
+  return "📅";
+}
+
+// ── Parse program text into rows ──────────────────────────────────────────────
+// Format expected (one entry per line):  "HH:MM - HH:MM: Activity name"
+// or just "HH:MM: Activity name"
+function parseProgram(programText) {
+  if (!programText) return [];
+  return programText.split("\n")
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .map(line => {
+      const match = line.match(/^([^:]+):\s*(.+)$/);
+      if (match) return { time: match[1].trim(), activity: match[2].trim() };
+      return { time: "", activity: line };
+    });
+}
+
+// ── Registration ──────────────────────────────────────────────────────────────
+window.handleDetailRegister = async function () {
+  const btn = document.getElementById("detailRegisterBtn");
+  const eventId = btn?.dataset.eventId;
+  if (!eventId) return;
+
+  if (!currentUserId) {
+    if (confirm("You need to be logged in to register. Go to login page?")) {
+      window.location.href = "../user authentication/login.html";
+    }
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = "Registering…";
+
+  try {
+    const { error } = await supabaseClient
+      .from("event_registrations")
+      .insert({ event_id: eventId, user_id: currentUserId });
+    if (error) throw error;
+
+    isRegistered = true;
+    btn.textContent = "Registered ✓";
+    btn.classList.add("is-registered");
+
+    // Update capacity display
+    const capEl = document.getElementById("registeredCount");
+    if (capEl) capEl.textContent = parseInt(capEl.textContent || "0", 10) + 1;
+    updateCapacityBar();
+  } catch (err) {
+    console.error("Registration error:", err);
+    btn.disabled = false;
+    btn.textContent = "Register Now";
+    alert("Registration failed — please try again.");
+  }
+};
+
+function updateCapacityBar() {
+  const countEl = document.getElementById("registeredCount");
+  const maxEl   = document.getElementById("maxCapacity");
+  const barEl   = document.getElementById("capacityFill");
+  if (!countEl || !maxEl || !barEl) return;
+  const count = parseInt(countEl.textContent, 10) || 0;
+  const max   = parseInt(maxEl.textContent,   10) || 0;
+  if (max > 0) {
+    barEl.style.width = `${Math.min((count / max) * 100, 100)}%`;
+  }
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function renderEvent(event, registrationCount) {
+  const page = document.getElementById("detailPage");
+  const { day, mon } = dateBadge(event.event_date);
+  const icon     = eventIcon(event);
+  const timeStr  = event.event_time
+    ? `${timeFmt(event.event_time)}${event.end_time ? " – " + timeFmt(event.end_time) : ""}`
+    : null;
+  const isFull   = event.max_capacity && registrationCount >= event.max_capacity;
+
+  let btnLabel = "Register Now";
+  let btnExtra = "";
+  if (isRegistered) {
+    btnLabel = "Registered ✓";
+    btnExtra = ' class="register-btn-detail is-registered" disabled';
+  } else if (isFull) {
+    btnLabel = "Event Full";
+    btnExtra = ' class="register-btn-detail" disabled';
+  } else {
+    btnExtra = ` class="register-btn-detail" onclick="handleDetailRegister()"`;
+  }
+
+  // Hero image or placeholder
+  const heroContent = event.image_url
+    ? `<img src="${esc(event.image_url)}" alt="${esc(event.event_name)}"
+           onerror="this.parentElement.innerHTML='<div class=event-hero-placeholder>${icon}</div>'">`
+    : `<div class="event-hero-placeholder">${icon}</div>`;
+
+  // Program table (if program column exists)
+  const programRows = parseProgram(event.program);
+  const programSection = programRows.length > 0 ? `
+    <div class="section-heading">📋 Programme</div>
+    <table class="program-table">
+      <thead><tr><th>Time</th><th>Activity</th></tr></thead>
+      <tbody>
+        ${programRows.map(r => `
+          <tr>
+            <td class="time-cell">${esc(r.time)}</td>
+            <td>${esc(r.activity)}</td>
+          </tr>`).join("")}
+      </tbody>
+    </table>` : "";
+
+  // Capacity bar
+  const capacitySection = event.max_capacity ? `
+    <div class="capacity-bar-wrap">
+      <div class="capacity-label">
+        <span id="registeredCount">${registrationCount}</span> / <span id="maxCapacity">${event.max_capacity}</span> registered
+      </div>
+      <div class="capacity-bar">
+        <div class="capacity-fill" id="capacityFill" style="width:${Math.min((registrationCount / event.max_capacity) * 100, 100)}%"></div>
+      </div>
+    </div>` : "";
+
+  // Target audience (if column exists)
+  const audienceRow = event.target_audience ? `
+    <div class="info-row">
+      <span class="ico">👥</span>
+      <div><strong>Target Audience</strong>${esc(event.target_audience)}</div>
+    </div>` : "";
+
+  page.innerHTML = `
+    <a href="events.html" class="back-btn">← Back to Events</a>
+
+    <div class="event-hero">
+      <div class="event-hero-img-wrap">
+        ${heroContent}
+        <div class="hero-date-badge">
+          <span class="day">${day}</span>
+          <span class="mon">${mon}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="detail-grid">
+
+      <!-- MAIN CONTENT -->
+      <div class="detail-main">
+        <h1>${esc(event.event_name)}</h1>
+        ${event.organizer ? `<span class="organizer-tag">🏛 ${esc(event.organizer)}</span>` : ""}
+
+        ${event.description ? `
+          <div class="section-heading">📄 About This Event</div>
+          <p class="detail-description">${esc(event.description)}</p>
+        ` : ""}
+
+        ${programSection}
+      </div>
+
+      <!-- SIDEBAR -->
+      <div class="detail-sidebar">
+        <div class="info-card">
+          <h3>Event Info</h3>
+          <div class="info-row">
+            <span class="ico">📅</span>
+            <div><strong>Date</strong>${dateFull(event.event_date)}</div>
+          </div>
+          ${timeStr ? `
+          <div class="info-row">
+            <span class="ico">🕐</span>
+            <div><strong>Time</strong>${timeStr}</div>
+          </div>` : ""}
+          ${event.venue ? `
+          <div class="info-row">
+            <span class="ico">📍</span>
+            <div><strong>Venue</strong>${esc(event.venue)}</div>
+          </div>` : ""}
+          ${event.organizer ? `
+          <div class="info-row">
+            <span class="ico">🏛</span>
+            <div><strong>Organiser</strong>${esc(event.organizer)}</div>
+          </div>` : ""}
+          ${event.contact ? `
+          <div class="info-row">
+            <span class="ico">📞</span>
+            <div><strong>Contact</strong>${esc(event.contact)}</div>
+          </div>` : ""}
+          ${audienceRow}
+          ${capacitySection}
+        </div>
+
+        <button id="detailRegisterBtn"
+          data-event-id="${esc(event.id)}"
+          ${btnExtra}>
+          ${btnLabel}
+        </button>
+      </div>
+
+    </div>
+  `;
+
+  // Update page title
+  document.title = `${event.event_name} – MCKL Penang`;
+}
+
+// ── Auth header ───────────────────────────────────────────────────────────────
+async function renderAuthHeader() {
+  const authButtons = document.getElementById("authButtons");
+  if (!authButtons) return;
+
+  const renderLoggedOut = () => {
+    authButtons.innerHTML = `
+      <a href="../user authentication/login.html" class="login-btn">LOGIN</a>
+      <a href="../user authentication/signup.html" class="signup-btn">SIGN UP</a>`;
+    currentUserId = null;
+  };
+  const renderLoggedIn = (id) => {
+    currentUserId = id;
+    authButtons.innerHTML = `
+      <a href="../user authentication/profile.html" class="profile-link">
+        <img src="../images/profile.png" alt="Profile" class="profile-icon">
+      </a>
+      <a href="#" class="logout-btn" id="logoutBtn">LOGOUT</a>`;
+    const lb = document.getElementById("logoutBtn");
+    if (lb) lb.addEventListener("click", async e => { e.preventDefault(); await supabaseClient.auth.signOut(); });
+  };
+
+  if (!supabaseClient?.auth?.getSession) { renderLoggedOut(); return; }
+  const { data } = await supabaseClient.auth.getSession();
+  if (data?.session) renderLoggedIn(data.session.user.id);
+  else renderLoggedOut();
+
+  supabaseClient.auth.onAuthStateChange((_, session) => {
+    if (session) renderLoggedIn(session.user.id);
+    else renderLoggedOut();
+  });
+}
+
+// ── Main: fetch event by ID from URL ─────────────────────────────────────────
+async function init() {
+  await renderAuthHeader();
+
+  const params  = new URLSearchParams(window.location.search);
+  const eventId = params.get("id");
+
+  if (!eventId) {
+    document.getElementById("detailPage").innerHTML = `
+      <div class="state-wrap">
+        <div class="icon">❓</div>
+        <h3>No event specified</h3>
+        <p><a href="events.html">← Back to Events</a></p>
+      </div>`;
+    return;
+  }
+
+  // Fetch event + registration count in parallel
+  const [eventRes, regRes] = await Promise.all([
+    supabaseClient.from("events").select("*").eq("id", eventId).single(),
+    supabaseClient.from("event_registrations").select("id", { count: "exact", head: true }).eq("event_id", eventId),
+  ]);
+
+  if (eventRes.error || !eventRes.data) {
+    document.getElementById("detailPage").innerHTML = `
+      <div class="state-wrap">
+        <div class="icon">⚠️</div>
+        <h3>Event not found</h3>
+        <p><a href="events.html">← Back to Events</a></p>
+      </div>`;
+    return;
+  }
+
+  // Check if current user is already registered
+  if (currentUserId) {
+    const { data: myReg } = await supabaseClient
+      .from("event_registrations")
+      .select("id")
+      .eq("event_id", eventId)
+      .eq("user_id", currentUserId)
+      .maybeSingle();
+    isRegistered = !!myReg;
+  }
+
+  renderEvent(eventRes.data, regRes.count || 0);
+}
+
+// ── Mobile menu ───────────────────────────────────────────────────────────────
+const _mt = document.getElementById("menuToggle");
+const _nm = document.getElementById("navMenu");
+if (_mt && _nm) {
+  _mt.addEventListener("click", () => _nm.classList.toggle("active"));
+  window.addEventListener("resize", () => { if (window.innerWidth > 992) _nm.classList.remove("active"); });
+}
+
+document.addEventListener("DOMContentLoaded", init);
+</script>
+</body>
+</html>

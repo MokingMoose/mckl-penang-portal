@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Events – MCKL Penang</title>
+  <link rel="stylesheet" href="../style/index.css" />
+  <link rel="stylesheet" href="../style/Cns.css" />
+  <link rel="stylesheet" href="../style/events.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../script/supabaseClient.js"></script>
+</head>
+<body>
+
+<header class="navbar">
+  <div class="container nav-content">
+    <a href="../homepage/homepage.html" class="logo-link">
+      <img src="../images/mckl-logo.png" alt="MCKL Logo" class="logo">
+    </a>
+    <nav class="nav-links" id="navMenu">
+      <a href="../homepage/homepage.html">HOME</a>
+      <a href="../borrow/borrow.html">BORROW</a>
+      <a href="../club/clubs.html">CLUBS</a>
+      <a href="events.html">EVENTS</a>
+    </nav>
+    <div class="header-right">
+      <a href="../facility/contact.html" class="contact-btn">CONTACT US</a>
+      <div id="authButtons" aria-live="polite"></div>
+      <div class="menu-toggle" id="menuToggle">☰</div>
+    </div>
+  </div>
+</header>
+
+<div class="events-hero">
+  <span class="eyebrow">Campus Life</span>
+  <h1>Upcoming <span>Events</span></h1>
+  <p>Workshops, socials, competitions and more — everything happening at MCKL Penang, all in one place.</p>
+</div>
+
+<div class="events-toolbar">
+  <div class="filter-pills">
+    <button class="filter-btn active" data-filter="all">All Events</button>
+    <button class="filter-btn" data-filter="week">This Week</button>
+    <button class="filter-btn" data-filter="month">This Month</button>
+  </div>
+  <span class="events-count" id="eventsCount"></span>
+</div>
+
+<section class="events-section">
+  <div class="events-grid" id="eventsGrid">
+    <div class="skeleton-card">
+      <div class="sk-img"></div>
+      <div class="sk-body">
+        <div class="sk-line w-3-4"></div>
+        <div class="sk-line w-1-2"></div>
+        <div class="sk-line w-full"></div>
+        <div class="sk-line w-full"></div>
+        <div class="sk-line tall w-full" style="margin-top:4px"></div>
+      </div>
+    </div>
+    <div class="skeleton-card">
+      <div class="sk-img"></div>
+      <div class="sk-body">
+        <div class="sk-line w-full"></div>
+        <div class="sk-line w-1-3"></div>
+        <div class="sk-line w-3-4"></div>
+        <div class="sk-line w-full"></div>
+        <div class="sk-line tall w-full" style="margin-top:4px"></div>
+      </div>
+    </div>
+    <div class="skeleton-card">
+      <div class="sk-img"></div>
+      <div class="sk-body">
+        <div class="sk-line w-3-4"></div>
+        <div class="sk-line w-1-2"></div>
+        <div class="sk-line w-full"></div>
+        <div class="sk-line w-full"></div>
+        <div class="sk-line tall w-full" style="margin-top:4px"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="footer" id="contact">
+  <div class="container footer-content">
+    <div class="footer-logo-container">
+      <img src="../images/MCKL-logo 2.png" alt="MCKL Logo Footer" class="footer-logo">
+    </div>
+    <div class="footer-links">
+      <div class="footer-contact">
+        <h4>Contact Us</h4>
+        <ul>
+          <li><a href="mailto:admission.pg@mckl.edu.my">Email: admission.pg@mckl.edu.my</a></li>
+          <li><a href="tel:+6042175088">Phone: +604 217 5088 (General line)</a></li>
+          <li><a href="tel:+6046888327">Phone: +604 688 8327 (Course enquiry and registration)</a></li>
+          <li><a href="https://maps.app.goo.gl/cgDzUFLMhm3RTrkD8" target="_blank">Address: Lebuhraya Pykett, 10400 George Town, Pulau Pinang</a></li>
+        </ul>
+      </div>
+      <div class="footer-social">
+        <h4>Follow Us</h4>
+        <ul>
+          <li><a href="https://www.facebook.com/MethodistCollegeKL/" target="_blank">Facebook</a></li>
+          <li><a href="https://www.youtube.com/channel/UCnICekQMcPBPo24KylfP1AQ/featured" target="_blank">YouTube</a></li>
+          <li><a href="https://www.instagram.com/methodistcollegekl/" target="_blank">Instagram</a></li>
+          <li><a href="https://www.linkedin.com/school/methodist-college-kuala-lumpur/" target="_blank">LinkedIn</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <p class="copyright">© 2025 MCKL College Penang. All rights reserved.</p>
+</footer>
+
+<script>
+  "use strict";
+
+  const supabaseClient = window.supabaseClient;
+
+  let allEvents         = [];
+  let currentFilter     = "all";
+  let currentUserId     = null;
+  let userRegistrations = new Set();
+
+  // ─── Helpers ────────────────────────────────────────────────────────────────
+
+  function esc(str) {
+    return String(str ?? "")
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  function dateBadge(dateStr) {
+    const d   = new Date(dateStr + "T00:00:00");
+    const day = d.getDate();
+    const mon = d.toLocaleString("en-MY", { month: "short" });
+    return { day, mon };
+  }
+
+  function dateFull(dateStr) {
+    return new Date(dateStr + "T00:00:00").toLocaleDateString("en-MY", {
+      weekday: "long", year: "numeric", month: "long", day: "numeric"
+    });
+  }
+
+  function timeFmt(t) {
+    if (!t) return null;
+    const [hh, mm] = t.split(":");
+    const h = parseInt(hh, 10);
+    return `${h % 12 || 12}:${mm} ${h >= 12 ? "PM" : "AM"}`;
+  }
+
+  function eventIcon(event) {
+    const text = ((event.event_name || "") + " " + (event.organizer || "")).toLowerCase();
+    if (/sport|badminton|football|futsal|basketball|swim|run|athletic/i.test(text)) return "🏅";
+    if (/food|cook|bake|culinary|canteen/i.test(text))                               return "🍽️";
+    if (/music|concert|choir|band|perform/i.test(text))                              return "🎵";
+    if (/art|paint|draw|design|craft/i.test(text))                                   return "🎨";
+    if (/tech|code|hack|robot|stem|it |computer/i.test(text))                        return "💻";
+    if (/talk|seminar|workshop|lecture|conference/i.test(text))                      return "🎤";
+    if (/fund|charity|community|volunteer/i.test(text))                              return "🤝";
+    return "📅";
+  }
+
+  // ─── Auth Header ────────────────────────────────────────────────────────────
+
+  function wireLogout() {
+    const btn = document.getElementById("logoutBtn");
+    if (btn) btn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      await supabaseClient.auth.signOut();
+    });
+  }
+
+  function renderLoggedOut(authButtons) {
+    authButtons.innerHTML = `
+      <a href="../user authentication/login.html" class="login-btn">LOGIN</a>
+      <a href="../user authentication/signup.html" class="signup-btn">SIGN UP</a>`;
+    currentUserId = null;
+  }
+
+  function renderLoggedIn(authButtons, userId) {
+    currentUserId = userId;
+    authButtons.innerHTML = `
+      <a href="../user authentication/profile.html" class="profile-link">
+        <img src="../images/profile.png" alt="Profile" class="profile-icon">
+      </a>
+      <a href="#" class="logout-btn" id="logoutBtn">LOGOUT</a>`;
+    wireLogout();
+  }
+
+  async function renderAuthHeader() {
+    const authButtons = document.getElementById("authButtons");
+    if (!authButtons) return;
+    if (!supabaseClient?.auth?.getSession) { renderLoggedOut(authButtons); return; }
+    const { data } = await supabaseClient.auth.getSession();
+    if (data?.session) {
+      renderLoggedIn(authButtons, data.session.user.id);
+      await loadUserRegistrations(data.session.user.id);
+    } else {
+      renderLoggedOut(authButtons);
+    }
+    supabaseClient.auth.onAuthStateChange(async (_event, session) => {
+      if (session) {
+        renderLoggedIn(authButtons, session.user.id);
+        await loadUserRegistrations(session.user.id);
+      } else {
+        renderLoggedOut(authButtons);
+        userRegistrations.clear();
+      }
+      renderEvents(filterEvents(allEvents, currentFilter));
+    });
+  }
+
+  // ─── Registrations ──────────────────────────────────────────────────────────
+
+  async function loadUserRegistrations(userId) {
+    if (!userId || !supabaseClient) return;
+    const { data } = await supabaseClient
+      .from("event_registrations").select("event_id").eq("user_id", userId);
+    userRegistrations = new Set((data || []).map(r => r.event_id));
+  }
+
+  window.handleRegister = async function (btn) {
+    const eventId   = btn.dataset.eventId;
+    const eventName = btn.dataset.eventName;
+    if (!currentUserId) {
+      if (confirm(`Log in to register for "${eventName}". Go to login page?`))
+        window.location.href = "../user authentication/login.html";
+      return;
+    }
+    btn.disabled    = true;
+    btn.textContent = "Registering…";
+    try {
+      const { error } = await supabaseClient
+        .from("event_registrations")
+        .insert({ event_id: eventId, user_id: currentUserId });
+      if (error) throw error;
+      userRegistrations.add(eventId);
+      btn.textContent = "Registered ✓";
+      btn.classList.add("is-registered");
+    } catch (err) {
+      console.error("Registration error:", err);
+      btn.disabled    = false;
+      btn.textContent = "Register";
+      alert("Registration failed — please try again.");
+    }
+  };
+
+  // ─── Card builder ───────────────────────────────────────────────────────────
+
+  function buildCard(event) {
+    const { day, mon } = dateBadge(event.event_date);
+    const isRegistered = userRegistrations.has(event.id);
+    const icon         = eventIcon(event);
+
+    let btnLabel = "Register";
+    let btnExtra = "";
+    if (isRegistered) {
+      btnLabel = "Registered ✓";
+      btnExtra = ' disabled class="register-btn is-registered"';
+    } else {
+      btnExtra = ` class="register-btn"
+        data-event-id="${esc(event.id)}"
+        data-event-name="${esc(event.event_name)}"
+        onclick="handleRegister(this)"`;
+    }
+
+    const timeStr = event.event_time
+      ? `${timeFmt(event.event_time)}${event.end_time ? " – " + timeFmt(event.end_time) : ""}`
+      : null;
+
+    const imgBlock = event.image_url
+      ? `<img src="${esc(event.image_url)}" alt="${esc(event.event_name)}" onerror="this.style.display='none'">`
+      : `<div class="event-icon">${icon}</div>`;
+
+    return `
+      <article class="event-card">
+        <div class="event-card-img">
+          ${imgBlock}
+          <div class="date-badge">
+            <span class="day">${day}</span>
+            <span class="mon">${mon}</span>
+          </div>
+          ${event.organizer ? `<span class="organizer-pill">${esc(event.organizer)}</span>` : ""}
+        </div>
+        <div class="event-card-body">
+          <h3>${esc(event.event_name)}</h3>
+          <div class="event-meta">
+            <div class="meta-row">
+              <span class="icon">📅</span>
+              <span>${dateFull(event.event_date)}</span>
+            </div>
+            ${timeStr ? `
+            <div class="meta-row">
+              <span class="icon">🕐</span>
+              <span>${timeStr}</span>
+            </div>` : ""}
+            ${event.venue ? `
+            <div class="meta-row">
+              <span class="icon">📍</span>
+              <span>${esc(event.venue)}</span>
+            </div>` : ""}
+            ${event.contact ? `
+            <div class="meta-row">
+              <span class="icon">📞</span>
+              <span>${esc(event.contact)}</span>
+            </div>` : ""}
+          </div>
+          ${event.description ? `<p class="event-desc">${esc(event.description)}</p>` : ""}
+          <div class="card-actions">
+            <button ${btnExtra}>${btnLabel}</button>
+            <a href="event_detail.html?id=${esc(event.id)}" class="details-btn">Details</a>
+          </div>
+        </div>
+      </article>
+    `;
+  }
+
+  // ─── Filter ─────────────────────────────────────────────────────────────────
+
+  function filterEvents(events, filter) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return events.filter(ev => {
+      const d = new Date(ev.event_date + "T00:00:00");
+      if (filter === "week") {
+        const end = new Date(today);
+        end.setDate(end.getDate() + 7);
+        return d >= today && d <= end;
+      }
+      if (filter === "month") {
+        return d.getFullYear() === today.getFullYear() &&
+               d.getMonth()    === today.getMonth()    &&
+               d >= today;
+      }
+      return true;
+    });
+  }
+
+  // ─── Render ─────────────────────────────────────────────────────────────────
+
+  function renderEvents(events) {
+    const grid  = document.getElementById("eventsGrid");
+    const count = document.getElementById("eventsCount");
+    if (!grid) return;
+    if (events.length === 0) {
+      grid.innerHTML = `
+        <div class="empty-state">
+          <div class="es-icon">📅</div>
+          <h3>No events found</h3>
+          <p>Nothing scheduled for this period — check back soon or try a different filter.</p>
+        </div>`;
+      if (count) count.innerHTML = "";
+      return;
+    }
+    const sorted = [...events].sort((a, b) => new Date(a.event_date) - new Date(b.event_date));
+    grid.innerHTML = sorted.map(buildCard).join("");
+    if (count) count.innerHTML = `<strong>${events.length}</strong> event${events.length !== 1 ? "s" : ""} showing`;
+  }
+
+  // ─── Fetch ──────────────────────────────────────────────────────────────────
+
+  async function fetchEvents() {
+    const grid = document.getElementById("eventsGrid");
+    if (!supabaseClient) {
+      if (grid) grid.innerHTML = `
+        <div class="empty-state">
+          <div class="es-icon">⚠️</div>
+          <h3>Could not load events</h3>
+          <p>Supabase client not initialised. Check script load order.</p>
+        </div>`;
+      return;
+    }
+    const today = new Date().toISOString().split("T")[0];
+    const { data, error } = await supabaseClient
+      .from("events").select("*").gte("event_date", today).order("event_date", { ascending: true });
+    if (error) {
+      console.error("Events fetch error:", error);
+      if (grid) grid.innerHTML = `
+        <div class="empty-state">
+          <div class="es-icon">⚠️</div>
+          <h3>Could not load events</h3>
+          <p>Please refresh the page or contact support if the issue persists.</p>
+        </div>`;
+      return;
+    }
+    allEvents = data || [];
+    renderEvents(filterEvents(allEvents, currentFilter));
+  }
+
+  // ─── Init ────────────────────────────────────────────────────────────────────
+
+  document.querySelectorAll(".filter-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      currentFilter = btn.dataset.filter;
+      renderEvents(filterEvents(allEvents, currentFilter));
+    });
+  });
+
+  const menuToggle = document.getElementById("menuToggle");
+  const navMenu    = document.getElementById("navMenu");
+  if (menuToggle && navMenu) {
+    menuToggle.addEventListener("click", () => navMenu.classList.toggle("active"));
+    window.addEventListener("resize", () => { if (window.innerWidth > 992) navMenu.classList.remove("active"); });
+  }
+
+  document.addEventListener("DOMContentLoaded", async () => {
+    await renderAuthHeader();
+    await fetchEvents();
+  });
+</script>
+</body>
+</html>

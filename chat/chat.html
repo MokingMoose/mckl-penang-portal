@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Chat Assistant – MCKL Penang</title>
+  <link rel="stylesheet" href="../style/index.css">
+  <link rel="stylesheet" href="../style/Cns.css">
+  <link rel="stylesheet" href="../style/chat.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../script/supabaseClient.js"></script>
+</head>
+<body>
+
+<header class="navbar">
+  <div class="container nav-content">
+    <a href="../homepage/homepage.html" class="logo-link">
+      <img src="../images/mckl-logo.png" alt="MCKL Logo" class="logo">
+    </a>
+    <nav class="nav-links" id="navMenu">
+      <a href="../homepage/homepage.html">HOME</a>
+      <a href="../facility/facilities.php">FACILITIES</a>
+      <a href="../club/clubs.html">CLUBS</a>
+      <a href="../events/events.html">EVENTS</a>
+      <a href="../homepage/store.php">MERCHANDISE</a>
+    </nav>
+    <div class="header-right">
+      <a href="../facility/contact.html" class="contact-btn">CONTACT US</a>
+      <div id="authButtons" aria-live="polite"></div>
+      <a href="../homepage/cart.php" class="cart-link">
+        <img src="../images/cart.png" alt="Cart" class="cart-icon">
+      </a>
+      <div class="menu-toggle" id="menuToggle">&#9776;</div>
+    </div>
+  </div>
+</header>
+
+<main class="chat-wrap">
+  <section class="chat-shell">
+    <div class="chat-hero">
+      <h1>MCKL AI Assistant</h1>
+      <p>Ask about timetables, clubs, events, facilities, or campus resources. The assistant searches uploaded documents before answering.</p>
+    </div>
+    <div class="chat-body">
+      <div id="chatHistory" class="chat-history" aria-live="polite"></div>
+      <div class="chat-composer">
+        <form id="chatForm" class="chat-form">
+          <textarea
+            id="chatInput"
+            class="chat-input"
+            placeholder="Type your question here... (Enter to send, Shift+Enter for new line)"
+            rows="2"
+            required
+          ></textarea>
+          <button type="submit" id="sendButton" class="chat-send">Send</button>
+        </form>
+        <div id="statusLine" class="status-line"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer" id="contact">
+  <div class="container footer-content">
+    <div class="footer-logo-container">
+      <img src="../images/MCKL-logo 2.png" alt="MCKL Logo Footer" class="footer-logo">
+    </div>
+    <div class="footer-links">
+      <div class="footer-contact">
+        <h4>Contact Us</h4>
+        <ul>
+          <li><a href="mailto:admission.pg@mckl.edu.my">Email: admission.pg@mckl.edu.my</a></li>
+          <li><a href="tel:+6042175088">Phone: +604 217 5088 (General line)</a></li>
+          <li><a href="tel:+6046888327">Phone: +604 688 8327 (Course enquiry and registration)</a></li>
+          <li><a href="https://maps.app.goo.gl/cgDzUFLMhm3RTrkD8" target="_blank">Address: Lebuhraya Pykett, 10400 George Town, Pulau Pinang</a></li>
+        </ul>
+      </div>
+      <div class="footer-social">
+        <h4>Follow Us</h4>
+        <ul>
+          <li><a href="https://www.facebook.com/MethodistCollegeKL/" target="_blank">Facebook</a></li>
+          <li><a href="https://www.youtube.com/channel/UCnICekQMcPBPo24KylfP1AQ/featured" target="_blank">YouTube</a></li>
+          <li><a href="https://www.instagram.com/methodistcollegekl/" target="_blank">Instagram</a></li>
+          <li><a href="https://www.linkedin.com/school/methodist-college-kuala-lumpur/" target="_blank">LinkedIn</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <p class="copyright">© 2025 MCKL College Penang. All rights reserved.</p>
+</footer>
+
+<script>
+"use strict";
+
+// ── State ─────────────────────────────────────────────────────────────────────
+const conversationHistory = [];
+const supabaseClient      = window.supabaseClient;
+const supabaseUrl         = window.supabaseConfig?.url;
+const anonKey             = window.supabaseConfig?.anonKey;
+
+// ── DOM helpers ───────────────────────────────────────────────────────────────
+function scrollToBottom() {
+  const h = document.getElementById("chatHistory");
+  if (h) h.scrollTop = h.scrollHeight;
+}
+
+function appendMessage(role, content) {
+  const history = document.getElementById("chatHistory");
+  if (!history) return null;
+  const wrap   = document.createElement("div");
+  wrap.className = `message ${role}`;
+  const bubble = document.createElement("div");
+  bubble.className  = "bubble";
+  bubble.textContent = content;
+  wrap.appendChild(bubble);
+  history.appendChild(wrap);
+  scrollToBottom();
+  return bubble;
+}
+
+function appendTypingIndicator() {
+  const history = document.getElementById("chatHistory");
+  if (!history) return null;
+  const wrap   = document.createElement("div");
+  wrap.className = "message assistant";
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.innerHTML = '<span class="typing" aria-label="Thinking"><span></span><span></span><span></span></span>';
+  wrap.appendChild(bubble);
+  history.appendChild(wrap);
+  scrollToBottom();
+  return bubble;
+}
+
+function setStatus(msg, isError = false) {
+  const el = document.getElementById("statusLine");
+  if (!el) return;
+  el.textContent = msg;
+  el.className   = isError ? "status-line error" : "status-line";
+}
+
+// ── Auth header ───────────────────────────────────────────────────────────────
+async function renderAuthHeader() {
+  const authButtons = document.getElementById("authButtons");
+  if (!authButtons || !supabaseClient?.auth?.getSession) return;
+
+  const renderLoggedOut = () => {
+    authButtons.innerHTML = `
+      <a href="../user authentication/login.html" class="login-btn">LOGIN</a>
+      <a href="../user authentication/signup.html" class="signup-btn">SIGN UP</a>`;
+  };
+  const renderLoggedIn = () => {
+    authButtons.innerHTML = `
+      <a href="../user authentication/profile.html" class="profile-link">
+        <img src="../images/profile.png" alt="Profile" class="profile-icon">
+      </a>
+      <a href="#" class="logout-btn" id="logoutBtn">LOGOUT</a>`;
+    const lb = document.getElementById("logoutBtn");
+    if (lb) lb.addEventListener("click", async e => {
+      e.preventDefault();
+      await supabaseClient.auth.signOut();
+    });
+  };
+
+  const { data } = await supabaseClient.auth.getSession();
+  data?.session ? renderLoggedIn() : renderLoggedOut();
+  supabaseClient.auth.onAuthStateChange((_, s) => s ? renderLoggedIn() : renderLoggedOut());
+}
+
+// ── Edge function caller ──────────────────────────────────────────────────────
+async function callEdge(action, payload) {
+  if (!supabaseUrl || !anonKey) throw new Error("Supabase config missing.");
+
+  const { data: sessionData } = await supabaseClient.auth.getSession();
+  const token = sessionData?.session?.access_token || anonKey;
+
+  const res = await fetch(`${supabaseUrl}/functions/v1/rag-chat`, {
+    method: "POST",
+    headers: {
+      "Content-Type":  "application/json",
+      "apikey":        anonKey,
+      "Authorization": `Bearer ${token}`,
+    },
+    body: JSON.stringify({ action, ...payload }),
+  });
+
+  let json = {};
+  try { json = await res.json(); } catch (_) {}
+  if (!res.ok) throw new Error(json.error || json.message || `HTTP ${res.status}`);
+  return json;
+}
+
+// ── Build context string from matched document chunks ─────────────────────────
+function buildContext(matches) {
+  if (!Array.isArray(matches) || matches.length === 0) return "";
+  return matches.map((m, i) => {
+    const title   = m.title || m.source || `Document ${i + 1}`;
+    const content = m.content || "";
+    const uploaded = m.metadata?.uploaded_at
+      ? ` (uploaded ${new Date(m.metadata.uploaded_at).toLocaleDateString("en-MY", { day:"2-digit", month:"short", year:"numeric" })})`
+      : "";
+    return `[${i + 1}] ${title}${uploaded}\n${content}`.trim();
+  }).join("\n\n");
+}
+
+// Fetch upcoming events and format as readable context
+async function fetchEventsContext() {
+  const today = new Date().toISOString().split("T")[0];
+  const { data: events, error } = await supabaseClient
+    .from("events")
+    .select("event_name, event_date, event_time, end_time, venue, organizer, description, contact")
+    .gte("event_date", today)
+    .order("event_date", { ascending: true })
+    .limit(10);
+
+  if (error || !events || events.length === 0) return "";
+
+  const lines = events.map(ev => {
+    const date = new Date(ev.event_date + "T00:00:00")
+      .toLocaleDateString("en-MY", { weekday:"long", day:"2-digit", month:"long", year:"numeric" });
+    const time = ev.event_time
+      ? `, ${ev.event_time}${ev.end_time ? " – " + ev.end_time : ""}`
+      : "";
+    const venue    = ev.venue       ? `, Venue: ${ev.venue}`         : "";
+    const org      = ev.organizer   ? `, Organised by: ${ev.organizer}` : "";
+    const contact  = ev.contact     ? `, Contact: ${ev.contact}`     : "";
+    const desc     = ev.description ? `. ${ev.description}`          : "";
+    return `- ${ev.event_name}: ${date}${time}${venue}${org}${contact}${desc}`;
+  }).join("\n");
+
+  return `UPCOMING CAMPUS EVENTS:\n${lines}`;
+}
+
+// ── Main submit handler ───────────────────────────────────────────────────────
+async function handleSubmit(e) {
+  e.preventDefault();
+
+  const input      = document.getElementById("chatInput");
+  const sendBtn    = document.getElementById("sendButton");
+  const question   = input.value.trim();
+  if (!question) return;
+
+  conversationHistory.push({ role: "user", content: question });
+  appendMessage("user", question);
+  input.value       = "";
+  input.style.height = "auto";
+  sendBtn.disabled  = true;
+
+  const typingBubble = appendTypingIndicator();
+  setStatus("Searching documents…");
+
+  try {
+    // Step 1: embed the question
+    const { embedding } = await callEdge("embed", { input: question });
+    if (!Array.isArray(embedding) || embedding.length === 0)
+      throw new Error("Empty embedding returned.");
+
+// Step 2: vector search + fetch events in parallel
+    setStatus("Searching documents…");
+    const [matchResult, eventsCtx] = await Promise.all([
+      supabaseClient.rpc("match_documents", {
+        query_embedding: embedding,
+        match_count: 5,
+      }),
+      fetchEventsContext(),
+    ]);
+
+    if (matchResult.error) throw matchResult.error;
+
+    // Step 3: generate answer with combined context
+    setStatus("Generating answer…");
+    const ragContext  = buildContext(matchResult.data);
+    const fullContext = [ragContext, eventsCtx].filter(Boolean).join("\n\n---\n\n");
+
+    const { answer } = await callEdge("answer", {
+      question,
+      context: fullContext,
+      history: conversationHistory
+        .filter(m => m.role === "user" || m.role === "assistant")
+        .slice(-6),
+    });
+
+    if (!answer) throw new Error("No answer returned.");
+    if (typingBubble) typingBubble.textContent = answer;
+    else appendMessage("assistant", answer);
+
+    conversationHistory.push({ role: "assistant", content: answer });
+    setStatus("Done.");
+
+  } catch (err) {
+    console.error("RAG error:", err);
+    const errMsg = "Sorry, I couldn't complete that request. Please try again.";
+    if (typingBubble) typingBubble.textContent = errMsg;
+    else appendMessage("assistant", errMsg);
+    conversationHistory.push({ role: "assistant", content: errMsg });
+    setStatus("Something went wrong.", true);
+  } finally {
+    sendBtn.disabled = false;
+    scrollToBottom();
+  }
+}
+
+// ── Mobile menu ───────────────────────────────────────────────────────────────
+const menuToggle = document.getElementById("menuToggle");
+const navMenu    = document.getElementById("navMenu");
+if (menuToggle && navMenu) {
+  menuToggle.addEventListener("click", () => navMenu.classList.toggle("active"));
+  window.addEventListener("resize", () => {
+    if (window.innerWidth > 992) navMenu.classList.remove("active");
+  });
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.addEventListener("DOMContentLoaded", () => {
+  renderAuthHeader();
+
+  appendMessage("assistant",
+    "Hello! I'm the MCKL AI Assistant. Ask me about timetables, clubs, events, facilities, or anything about campus life."
+  );
+
+  const form  = document.getElementById("chatForm");
+  const input = document.getElementById("chatInput");
+
+  if (form)  form.addEventListener("submit", handleSubmit);
+  if (input) {
+    input.addEventListener("input", () => {
+      input.style.height = "auto";
+      input.style.height = `${Math.min(input.scrollHeight, 180)}px`;
+    });
+    input.addEventListener("keydown", e => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        form?.requestSubmit();
+      }
+    });
+  }
+});
+</script>
+</body>
+</html>

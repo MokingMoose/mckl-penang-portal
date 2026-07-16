@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Borrowing Module</title>
+  <link rel="stylesheet" href="../style/index.css" />
+  <link rel="stylesheet" href="../style/Cns.css" />
+  <style>
+    .borrow-wrap {
+      max-width: 700px;
+      margin: 100px auto 0;
+      padding: 20px 20px 60px;
+    }
+
+    .borrow-panel {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.14);
+      border: 1px solid #e0e6f0;
+      overflow: hidden;
+    }
+
+    /* panel title bar */
+    .borrow-titlebar {
+      background: linear-gradient(135deg, #001e4d, #002e6d);
+      padding: 24px 28px;
+      color: #fff;
+    }
+    .borrow-titlebar h1 {
+      margin: 0 0 6px;
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #fff;
+    }
+    .borrow-titlebar p {
+      margin: 0;
+      color: rgba(255,255,255,.75);
+      font-size: .92rem;
+    }
+
+    /* form body */
+    .borrow-body { padding: 28px; }
+
+    .borrow-form { display: grid; gap: 18px; }
+
+    .form-group { display: grid; gap: 7px; }
+
+    .form-group label {
+      font-weight: 700;
+      font-size: .88rem;
+      color: #002e6d;
+      letter-spacing: .02em;
+    }
+    .form-group .field-hint {
+      font-size: .76rem;
+      color: #888;
+      font-weight: 400;
+      margin-top: -4px;
+    }
+
+    .form-group input,
+    .form-group select {
+      width: 100%;
+      padding: 11px 14px;
+      border: 1.5px solid #cfd8e3;
+      border-radius: 6px;
+      font-family: Arial, sans-serif;
+      font-size: .93rem;
+      background: #fff;
+      color: #111827;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .form-group input:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: #002e6d;
+      box-shadow: 0 0 0 3px rgba(0,46,109,.09);
+    }
+
+    /* two-column grid for dates */
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    /* login warning */
+    .login-notice {
+      display: none;
+      padding: 12px 16px;
+      background: #fef3c7;
+      border: 1px solid #fcd34d;
+      border-radius: 6px;
+      color: #92400e;
+      font-size: .88rem;
+      font-weight: 600;
+    }
+    .login-notice a { color: #002e6d; }
+
+    /* message */
+    .message {
+      display: none;
+      padding: 12px 16px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: .9rem;
+      margin-bottom: 18px;
+    }
+    .message.success { display: block; background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+    .message.error   { display: block; background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+
+    /* submit button — matches school Contact Us style */
+    .submit-btn {
+      padding: 12px 28px;
+      border: none;
+      border-radius: 3px;
+      background: #f9c400;
+      color: #002e6d;
+      font-family: Arial, sans-serif;
+      font-size: .95rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: .3px;
+      transition: background .2s, transform .2s;
+      justify-self: start;
+    }
+    .submit-btn:hover:not(:disabled) {
+      background: #ffda52;
+      transform: translateY(-2px);
+    }
+    .submit-btn:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+
+    /* divider */
+    .form-divider {
+      border: none;
+      border-top: 1px solid #e8edf5;
+      margin: 4px 0;
+    }
+
+    @media (max-width: 640px) {
+      .borrow-wrap { margin-top: 80px; padding: 14px 14px 50px; }
+      .borrow-titlebar { padding: 20px; }
+      .borrow-body { padding: 18px; }
+      .form-row { grid-template-columns: 1fr; }
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../script/supabaseClient.js"></script>
+</head>
+<body>
+
+<header class="navbar">
+  <div class="container nav-content">
+    <a href="../homepage/homepage.html" class="logo-link">
+      <img src="../images/mckl-logo.png" alt="MCKL Logo" class="logo">
+    </a>
+    <nav class="nav-links" id="navMenu">
+      <a href="../homepage/homepage.html">HOME</a>
+      <a href="borrow.html">BORROW</a>
+      <a href="../club/clubs.html">CLUBS</a>
+      <a href="../events/events.html">EVENTS</a>
+    </nav>
+    <div class="header-right">
+      <a href="../facility/contact.html" class="contact-btn">CONTACT US</a>
+      <div id="authButtons" aria-live="polite"></div>
+      <div class="menu-toggle" id="menuToggle">&#9776;</div>
+    </div>
+  </div>
+</header>
+
+<main class="borrow-wrap">
+  <div class="borrow-panel">
+
+    <div class="borrow-titlebar">
+      <h1>📦 Item Borrowing</h1>
+      <p>Submit a borrowing request for school equipment and track your due dates.</p>
+    </div>
+
+    <div class="borrow-body">
+
+      <div id="loginNotice" class="login-notice">
+        ⚠️ You must be <a href="../user authentication/login.html">logged in</a> to submit a borrowing request.
+      </div>
+
+      <div id="formMessage" class="message" role="alert" aria-live="polite"></div>
+
+      <form id="borrowForm" class="borrow-form">
+
+        <div class="form-group">
+          <label for="item_name">Item Name <span style="color:#c0392b">*</span></label>
+          <input
+            type="text"
+            id="item_name"
+            name="item_name"
+            placeholder="e.g. Extension Cord, Calculator, Projector…"
+            required
+          />
+        </div>
+
+        <hr class="form-divider" />
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="borrow_at">Borrow Date & Time <span style="color:#c0392b">*</span></label>
+            <input type="datetime-local" id="borrow_at" name="borrow_at" required />
+          </div>
+          <div class="form-group">
+            <label for="due_at">Due Date & Time <span style="color:#c0392b">*</span></label>
+            <input type="datetime-local" id="due_at" name="due_at" required />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="returned_at">Returned At</label>
+          <span class="field-hint">Leave blank if the item hasn't been returned yet.</span>
+          <input type="datetime-local" id="returned_at" name="returned_at" />
+        </div>
+
+        <button type="submit" class="submit-btn" id="submitBtn">Submit Request</button>
+
+      </form>
+    </div>
+  </div>
+</main>
+
+<footer class="footer" id="contact">
+  <div class="container footer-content">
+    <div class="footer-logo-container">
+      <img src="../images/MCKL-logo 2.png" alt="MCKL Logo Footer" class="footer-logo">
+    </div>
+    <div class="footer-links">
+      <div class="footer-contact">
+        <h4>Contact Us</h4>
+        <ul>
+          <li><a href="mailto:admission.pg@mckl.edu.my">Email: admission.pg@mckl.edu.my</a></li>
+          <li><a href="tel:+6042175088">Phone: +604 217 5088 (General line)</a></li>
+          <li><a href="tel:+6046888327">Phone: +604 688 8327 (Course enquiry and registration)</a></li>
+          <li><a href="https://maps.app.goo.gl/cgDzUFLMhm3RTrkD8" target="_blank">Address: Lebuhraya Pykett, 10400 George Town, Pulau Pinang</a></li>
+        </ul>
+      </div>
+      <div class="footer-social">
+        <h4>Follow Us</h4>
+        <ul>
+          <li><a href="https://www.facebook.com/MethodistCollegeKL/" target="_blank">Facebook</a></li>
+          <li><a href="https://www.youtube.com/channel/UCnICekQMcPBPo24KylfP1AQ/featured" target="_blank">YouTube</a></li>
+          <li><a href="https://www.instagram.com/methodistcollegekl/" target="_blank">Instagram</a></li>
+          <li><a href="https://www.linkedin.com/school/methodist-college-kuala-lumpur/" target="_blank">LinkedIn</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <p class="copyright">© 2025 MCKL College Penang. All rights reserved.</p>
+</footer>
+
+<script>
+// ── AUTH HEADER ───────────────────────────────────────────────────────────────
+async function renderAuthHeader() {
+  const authButtons = document.getElementById("authButtons");
+  if (!authButtons) return;
+  const client = window.supabaseClient;
+
+  const renderLoggedOut = () => {
+    authButtons.innerHTML = `
+      <a href="../user authentication/login.html" class="login-btn">LOGIN</a>
+      <a href="../user authentication/signup.html" class="signup-btn">SIGN UP</a>`;
+  };
+  const renderLoggedIn = () => {
+    authButtons.innerHTML = `
+      <a href="../user authentication/profile.html" class="profile-link">
+        <img src="../images/profile.png" alt="Profile" class="profile-icon">
+      </a>
+      <a href="#" class="logout-btn" id="logoutBtn">LOGOUT</a>`;
+    const lb = document.getElementById("logoutBtn");
+    if (lb) lb.addEventListener("click", async e => { e.preventDefault(); await client.auth.signOut(); });
+  };
+
+  if (!client?.auth?.getSession) { renderLoggedOut(); return; }
+  const { data } = await client.auth.getSession();
+  data?.session ? renderLoggedIn() : renderLoggedOut();
+  client.auth.onAuthStateChange((_, s) => {
+    s ? renderLoggedIn() : renderLoggedOut();
+    // Show/hide login notice based on session
+    const notice = document.getElementById("loginNotice");
+    if (notice) notice.style.display = s ? "none" : "block";
+  });
+
+  // Show login notice if not logged in
+  if (!data?.session) {
+    const notice = document.getElementById("loginNotice");
+    if (notice) notice.style.display = "block";
+  }
+}
+
+// ── FORM SUBMIT ───────────────────────────────────────────────────────────────
+function toIso(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+function showMessage(text, type) {
+  const el = document.getElementById("formMessage");
+  if (!el) return;
+  el.textContent = text;
+  el.className = `message ${type}`;
+}
+
+async function handleBorrowSubmit(event) {
+  event.preventDefault();
+  const client = window.supabaseClient;
+  const submitBtn = document.getElementById("submitBtn");
+
+  if (!client) { showMessage("Supabase client not initialized.", "error"); return; }
+
+  // Must be logged in — borrower_by is NOT NULL uuid
+  const { data: sessionData } = await client.auth.getSession();
+  const userId = sessionData?.session?.user?.id ?? null;
+  if (!userId) {
+    showMessage("You must be logged in to submit a borrowing request.", "error");
+    return;
+  }
+
+  const itemName  = document.getElementById("item_name").value.trim();
+  const borrowAt  = toIso(document.getElementById("borrow_at").value);
+  const dueAt     = toIso(document.getElementById("due_at").value);
+  const returnedAt = toIso(document.getElementById("returned_at").value);
+
+  if (!itemName || !borrowAt || !dueAt) {
+    showMessage("Please fill in all required fields.", "error");
+    return;
+  }
+
+  if (new Date(dueAt) <= new Date(borrowAt)) {
+    showMessage("Due date must be after the borrow date.", "error");
+    return;
+  }
+
+  try {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Submitting…";
+
+    // Insert only the columns that actually exist in the table:
+    // borrow_id (auto), item_name, borrower_by, borrow_at, due_at, returned_at
+    const { error } = await client.from("items_borrowing").insert([{
+      item_name:    itemName,
+      borrower_by:  userId,
+      borrow_at:    borrowAt,
+      due_at:       dueAt,
+      returned_at:  returnedAt,   // null if blank — column is nullable
+    }]);
+
+    if (error) {
+      console.error("Borrowing insert error:", error);
+      showMessage(`Error: ${error.message}`, "error");
+      return;
+    }
+
+    event.target.reset();
+    showMessage("✓ Borrowing request submitted successfully!", "success");
+
+  } catch (err) {
+    console.error("Unexpected error:", err);
+    showMessage("Unexpected error. Please try again.", "error");
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Submit Request";
+  }
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+document.addEventListener("DOMContentLoaded", () => {
+  renderAuthHeader();
+  const form = document.getElementById("borrowForm");
+  if (form) form.addEventListener("submit", handleBorrowSubmit);
+
+  // Set borrow_at default to now
+  const borrowAt = document.getElementById("borrow_at");
+  if (borrowAt) {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    borrowAt.value = now.toISOString().slice(0, 16);
+  }
+});
+
+// ── MENU TOGGLE ───────────────────────────────────────────────────────────────
+const menuToggle = document.getElementById("menuToggle");
+const navMenu    = document.getElementById("navMenu");
+if (menuToggle && navMenu) {
+  menuToggle.addEventListener("click", () => navMenu.classList.toggle("active"));
+  window.addEventListener("resize", () => {
+    if (window.innerWidth > 992) navMenu.classList.remove("active");
+  });
+}
+</script>
+</body>
+</html>
